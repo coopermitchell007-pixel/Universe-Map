@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Universe Map — Earth to the Multiverse</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Building the universe…</div>
+  </div>
+
+  <div id="topbar">
+    <h1>UNIVERSE MAP</h1>
+    <nav id="crumbs"></nav>
+    <button id="news-btn">📰 Space News</button>
+  </div>
+
+  <aside id="news">
+    <div id="news-head">
+      <h2>Space News <span class="live-dot">LIVE</span></h2>
+      <button id="news-close" title="Close (Esc)">×</button>
+    </div>
+    <div id="news-chips">
+      <button class="chip active" data-q="">Latest</button>
+      <button class="chip" data-q="SpaceX">SpaceX</button>
+      <button class="chip" data-q="NASA">NASA</button>
+      <button class="chip" data-q="discovery">Discoveries</button>
+      <button class="chip" data-q="James Webb">Webb</button>
+    </div>
+    <div id="news-list"></div>
+  </aside>
+
+  <div id="toast"></div>
+
+  <aside id="panel">
+    <button id="panel-close" title="Close (Esc)">×</button>
+    <div id="panel-content"></div>
+  </aside>
+
+  <div id="scalebar"></div>
+
+  <div id="hint">Scroll to zoom · keep scrolling at the edge to change scale · drag to rotate · click anything for details</div>
+
+  <div id="zoombtns">
+    <button id="zoom-in" title="Zoom in">+</button>
+    <button id="zoom-out" title="Zoom out">−</button>
+  </div>
+
+  <div id="speed-wrap">
+    <label for="speed">Orbit speed</label>
+    <input id="speed" type="range" min="0" max="60" step="0.5" value="6" />
+    <span>days / sec</span>
+  </div>
+
+  <div id="tooltip"></div>
+  <div id="fade"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
