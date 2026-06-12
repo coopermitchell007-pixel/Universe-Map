@@ -26,22 +26,63 @@
   <div id="topbar">
     <h1>UNIVERSE MAP</h1>
     <nav id="crumbs"></nav>
-    <button id="news-btn">📰 Space News</button>
+    <div id="search-wrap">
+      <input id="search" type="text" placeholder="🔍 Search anything — Europa, Starlink, TRAPPIST-1…" autocomplete="off" spellcheck="false" />
+      <div id="search-results"></div>
+    </div>
+    <div id="tools">
+      <button id="flight-btn" title="Flight mode — pick a ship and fly">🚀 Fly</button>
+      <button id="tech-btn" title="Switch to the Tech Map">⚡ Tech</button>
+      <button id="news-btn" title="Live space news">📰</button>
+      <button id="videos-btn" title="Daily space videos">🎬</button>
+      <button id="games-btn" title="Daily space games">🎮</button>
+      <button id="timeline-btn" title="Cosmic timeline — Big Bang to heat death">🕰</button>
+      <button id="postcard-btn" title="Save this view as a postcard">📸</button>
+      <button id="sound-btn" title="Ambient sound">🔇</button>
+    </div>
   </div>
 
-  <aside id="news">
-    <div id="news-head">
-      <h2>Space News <span class="live-dot">LIVE</span></h2>
-      <button id="news-close" title="Close (Esc)">×</button>
+  <aside id="news" class="drawer">
+    <div class="drawer-head">
+      <h2 id="news-title">Space News <span class="live-dot">LIVE</span></h2>
+      <button class="drawer-close" title="Close (Esc)">×</button>
     </div>
-    <div id="news-chips">
-      <button class="chip active" data-q="">Latest</button>
-      <button class="chip" data-q="SpaceX">SpaceX</button>
-      <button class="chip" data-q="NASA">NASA</button>
-      <button class="chip" data-q="discovery">Discoveries</button>
-      <button class="chip" data-q="James Webb">Webb</button>
+    <div id="news-chips" class="chips">
+      <button class="chip space-chip active" data-q="">Latest</button>
+      <button class="chip space-chip" data-q="SpaceX">SpaceX</button>
+      <button class="chip space-chip" data-q="NASA">NASA</button>
+      <button class="chip space-chip" data-q="discovery">Discoveries</button>
+      <button class="chip space-chip" data-q="James Webb">Webb</button>
+      <button class="chip tech-chip" data-q="Starship">Starship</button>
+      <button class="chip tech-chip" data-q="Starlink">Starlink</button>
+      <button class="chip tech-chip" data-q="Artemis">Artemis</button>
+      <button class="chip tech-chip" data-q="rocket">Rockets</button>
+      <button class="chip tech-chip" data-q="Blue Origin">Blue Origin</button>
     </div>
     <div id="news-list"></div>
+  </aside>
+
+  <aside id="videos" class="drawer">
+    <div class="drawer-head">
+      <h2>Space Videos <span class="live-dot">DAILY</span></h2>
+      <button class="drawer-close" title="Close (Esc)">×</button>
+    </div>
+    <div id="videos-chips" class="chips">
+      <button class="chip active" data-list="cosmos">🌌 Cosmos</button>
+      <button class="chip" data-list="tech">🔧 Engineering & Tech</button>
+    </div>
+    <div id="videos-list"></div>
+  </aside>
+
+  <aside id="games" class="drawer">
+    <div class="drawer-head">
+      <h2>Space Games <span class="live-dot">DAILY</span></h2>
+      <button class="drawer-close" title="Close (Esc)">×</button>
+    </div>
+    <div id="games-chips" class="chips"></div>
+    <div id="game-score"></div>
+    <div id="game-stage"></div>
+    <p id="game-info"></p>
   </aside>
 
   <div id="toast"></div>
@@ -52,8 +93,9 @@
   </aside>
 
   <div id="scalebar"></div>
+  <div id="satlegend">🔵 LEO &nbsp;🟡 MEO &nbsp;🟠 GEO &nbsp;🔴 debris</div>
 
-  <div id="hint">Scroll to zoom · keep scrolling at the edge to change scale · drag to rotate · click anything for details</div>
+  <div id="hint">Scroll to zoom · keep scrolling at the edge to change scale · drag to rotate · click anything for details · type to search</div>
 
   <div id="zoombtns">
     <button id="zoom-in" title="Zoom in">+</button>
@@ -65,6 +107,29 @@
     <input id="speed" type="range" min="0" max="60" step="0.5" value="6" />
     <span>days / sec</span>
   </div>
+
+  <div id="ship-select">
+    <div id="ship-box">
+      <h2>Choose your ship</h2>
+      <p>WASD to fly · mouse to look · R/F up &amp; down · Shift to boost · scroll to trim throttle · Esc to exit</p>
+      <div id="ship-grid"></div>
+      <button id="ship-cancel">Cancel</button>
+    </div>
+  </div>
+  <div id="flight-hud"></div>
+  <div id="crosshair">+</div>
+
+  <div id="timeline">
+    <div id="tl-head">
+      <h2>🕰 Cosmic Timeline — Big Bang → Heat Death</h2>
+      <button id="tl-close" title="Close">×</button>
+    </div>
+    <div id="tl-card"></div>
+    <input id="tl-slider" type="range" min="0" max="16" step="1" value="9" />
+    <div id="tl-ends"><span>Big Bang</span><span>NOW</span><span>Heat death</span></div>
+  </div>
+
+  <button id="surface-exit">🧑‍🚀 Leave the surface (Esc)</button>
 
   <div id="tooltip"></div>
   <div id="fade"></div>

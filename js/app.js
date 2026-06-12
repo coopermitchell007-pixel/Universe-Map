@@ -8,6 +8,30 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as DATA from './data.js';
 import * as TEX from './textures.js';
+import * as EXTRAS from './extras.js';
+import { initFlight } from './flight.js';
+import { initSearch } from './search.js';
+import { initSound } from './sound.js';
+import { initTimeline } from './timeline.js';
+import { initPostcard } from './postcard.js';
+import { initVideos } from './videos.js';
+import { initGames } from './games.js';
+import { initTech } from './tech.js';
+
+// module handles wired up at boot (guarded — events can fire early)
+let techApi = null, flightApi = null, soundApi = null, searchApi = null;
+let videosApi = null, gamesApi = null, timelineApi = null;
+
+// "stand on the surface" mode (solar-system level)
+const surfaceViews = {};   // info.id -> { mesh, radius, lookAt() }
+let surfaceMode = false, surfaceSaved = null;
+
+// search entries can be registered before the search UI boots
+let searchQueue = [];
+function addSearchEntry(e) {
+  if (searchApi) searchApi.add(e);
+  else if (searchQueue) searchQueue.push(e);
+}
 
 // ---------------- renderer / scene / camera ----------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -36,28 +60,110 @@ const $ = id => document.getElementById(id);
 const panel = $('panel'), panelContent = $('panel-content');
 const tooltip = $('tooltip'), toast = $('toast'), scalebar = $('scalebar');
 const fadeEl = $('fade'), crumbsEl = $('crumbs');
-let openInfoId = null;
+let openInfoId = null, lastInfo = null;
+
+// ---- distance intelligence: light age + travel times, parsed from
+// whatever distance the info panel already states ----
+const C_KMS = 299792;
+function fmtYears(y) {
+  if (y < 1) return Math.round(y * 365.25).toLocaleString() + ' days';
+  if (y < 1e4) return (y < 100 ? y.toFixed(1) : Math.round(y).toLocaleString()) + ' years';
+  if (y < 1e6) return Math.round(y / 1000).toLocaleString() + ' thousand years';
+  if (y < 1e9) return (y / 1e6).toFixed(1) + ' million years';
+  if (y < 1e12) return (y / 1e9).toFixed(1) + ' billion years';
+  return (y / 1e12).toFixed(1) + ' trillion years';
+}
+function fmtHours(h) {
+  if (h < 2) return Math.round(h * 60) + ' minutes';
+  if (h < 72) return h.toFixed(1) + ' hours';
+  return fmtYears(h / 8766);
+}
+function infoDistanceKm(info) {
+  if (info.ly) return info.ly * KM_PER_LY;
+  if (info.km) return info.km;
+  const rows = (info.stats || []).filter(([k]) => /distance|away|how far/i.test(k));
+  const texts = [...rows.map(([, v]) => String(v)), String(info.subtitle || '')];
+  for (const s of texts) {
+    let m = s.match(/([\d,.]+)\s*(million|billion|thousand)?\s*light-years/i);
+    if (m) {
+      const mult = { million: 1e6, billion: 1e9, thousand: 1e3 }[(m[2] || '').toLowerCase()] || 1;
+      return parseFloat(m[1].replace(/,/g, '')) * mult * KM_PER_LY;
+    }
+    m = s.match(/([\d,.]+)\s*AU\b/i);
+    if (m) return parseFloat(m[1].replace(/,/g, '')) * KM_PER_AU;
+    m = s.match(/([\d,.]+)\s*(million|billion)?\s*km/i);
+    if (m) {
+      const mult = { million: 1e6, billion: 1e9 }[(m[2] || '').toLowerCase()] || 1;
+      return parseFloat(m[1].replace(/,/g, '')) * mult;
+    }
+  }
+  return null;
+}
+function travelHtml(info) {
+  const km = infoDistanceKm(info);
+  if (!km || km < 1e5) return '';
+  const lightH = km / C_KMS / 3600;
+  const ly = km / KM_PER_LY;
+  let html = `<div class="travel-head">🚀 Getting there from Earth (≈)</div><table>`;
+  if (ly >= 0.001) {
+    html += `<tr><td>The light you're seeing left it</td><td>${fmtYears(ly)} ago</td></tr>`;
+  } else {
+    html += `<tr><td>Light travel time</td><td>${fmtHours(lightH)}</td></tr>`;
+  }
+  html += `<tr><td>By car (100 km/h)</td><td>${fmtYears(km / 100 / 8766)}</td></tr>`;
+  html += `<tr><td>By jet airliner (900 km/h)</td><td>${fmtYears(km / 900 / 8766)}</td></tr>`;
+  html += `<tr><td>Fastest probe ever launched (58,500 km/h)</td><td>${fmtYears(km / 58500 / 8766)}</td></tr>`;
+  html += `<tr><td>At the speed of light</td><td>${ly >= 0.001 ? fmtYears(ly) : fmtHours(lightH)}</td></tr></table>`;
+  return html;
+}
 
 function showInfo(info) {
   openInfoId = info.id || null;
+  lastInfo = info;
   let html = `<h2>${info.name}</h2>`;
   if (info.subtitle) html += `<div class="sub">${info.subtitle}</div>`;
   if (info.stats && info.stats.length) {
     html += '<table>' + info.stats.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>';
   }
   if (info.desc) html += `<p>${info.desc}</p>`;
+  html += travelHtml(info);
   panelContent.innerHTML = html;
+  // "stand on the surface" for solar-system worlds
+  if (info.id && surfaceViews[info.id] && current === 1 && !surfaceMode) {
+    const b = document.createElement('button');
+    b.className = 'panel-act';
+    b.textContent = '🧑‍🚀 Stand on the surface';
+    b.addEventListener('click', () => enterSurface(info.id));
+    panelContent.appendChild(b);
+  }
   panel.classList.add('open');
+  if (info.name && !techApi?.active()) {
+    history.replaceState(null, '', '#o/' + encodeURIComponent(info.name));
+  }
 }
 function closePanel() { panel.classList.remove('open'); openInfoId = null; }
 $('panel-close').addEventListener('click', closePanel);
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closePanel(); clearFocus();
-    const news = document.getElementById('news');
-    if (news) news.classList.remove('open');
+    document.querySelectorAll('.drawer.open').forEach(closeDrawerEl);
+    if (surfaceMode) exitSurface();
+    if (timelineApi) timelineApi.close();
   }
 });
+
+// drawers are mutually exclusive on the left edge
+function closeDrawerEl(d) {
+  d.classList.remove('open');
+  if (d.id === 'games' && gamesApi) gamesApi.stop();
+  if (d.id === 'videos' && videosApi) videosApi.stopAll();
+}
+function openDrawer(el) {
+  document.querySelectorAll('.drawer.open').forEach(d => { if (d !== el) closeDrawerEl(d); });
+  el.classList.add('open');
+}
+document.querySelectorAll('.drawer-close').forEach(b =>
+  b.addEventListener('click', () => closeDrawerEl(b.closest('.drawer'))));
 
 let toastTimer = null;
 function showToast(title, sub) {
@@ -139,9 +245,10 @@ function registerLevel(def) {
   levels.push(def);
 }
 
-function gotoLevel(i, zoomingOut = true) {
+function gotoLevel(i, zoomingOut = true, after = null) {
   if (i < 0 || i >= levels.length || i === current && levels[current].group.visible) return;
   transitioning = true;
+  if (surfaceMode) exitSurface(true);
   closePanel(); clearFocus();
   tooltip.style.display = 'none';
   fadeEl.classList.add('on');
@@ -159,8 +266,13 @@ function gotoLevel(i, zoomingOut = true) {
     const meta = DATA.LEVEL_META[i];
     showToast(meta.name, meta.tagline);
     updateCrumbs();
+    if (soundApi) soundApi.setLevel(i);
     if (L.onEnter) L.onEnter();
-    setTimeout(() => { fadeEl.classList.remove('on'); transitioning = false; }, 80);
+    setTimeout(() => {
+      fadeEl.classList.remove('on');
+      transitioning = false;
+      if (after) after();
+    }, 80);
   }, 360);
 }
 
@@ -179,7 +291,7 @@ function updateCrumbs() {
 // scroll past the boundary of a level to change levels
 let edgeAccum = 0, edgeDir = 0;
 renderer.domElement.addEventListener('wheel', e => {
-  if (transitioning) return;
+  if (transitioning || (techApi && techApi.active()) || (flightApi && flightApi.active()) || surfaceMode) return;
   const d = camera.position.distanceTo(controls.target);
   const atMax = d > controls.maxDistance * 0.96;
   const atMin = d < controls.minDistance * 1.04;
@@ -197,7 +309,7 @@ renderer.domElement.addEventListener('wheel', e => {
 
 // +/- buttons (also crosses levels, useful on trackpads/touch)
 function dolly(factor) {
-  if (transitioning) return;
+  if (transitioning || (techApi && techApi.active()) || (flightApi && flightApi.active())) return;
   const d = camera.position.distanceTo(controls.target) * factor;
   if (d > controls.maxDistance && current < levels.length - 1) { gotoLevel(current + 1, true); return; }
   if (d < controls.minDistance && current > 0) { gotoLevel(current - 1, false); return; }
@@ -221,7 +333,8 @@ function pick(ev) {
   // click tolerance for point clouds scales with how far out we are
   raycaster.params.Points.threshold = THREE.MathUtils.clamp(
     camera.position.distanceTo(controls.target) * 0.012, 0.3, 9);
-  const hits = raycaster.intersectObjects(levels[current].pickables, true);
+  const activePickables = (techApi && techApi.active()) ? techApi.pickables : levels[current].pickables;
+  const hits = raycaster.intersectObjects(activePickables, true);
   // small named markers (stars, exoplanets, satellites) win over big
   // background clouds like the galaxy disc that they sit inside of
   let best = null;
@@ -247,7 +360,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (!downPos) return;
   const moved = Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]);
   downPos = null;
-  if (moved > 6 || transitioning) return;
+  if (moved > 6 || transitioning || (flightApi && flightApi.active())) return;
   const res = pick(e);
   if (res) {
     showInfo(res.info);
@@ -276,6 +389,51 @@ renderer.domElement.addEventListener('pointermove', e => {
   }
 });
 
+// ---------------- "stand on the surface" (solar system) ----------------
+const surfaceExitBtn = $('surface-exit');
+function enterSurface(id) {
+  const sv = surfaceViews[id];
+  if (!sv || surfaceMode) return;
+  surfaceMode = true; // freezes solar-system orbital motion
+  surfaceSaved = {
+    pos: camera.position.clone(), target: controls.target.clone(),
+    min: controls.minDistance, fov: camera.fov,
+  };
+  const meshW = sv.mesh.getWorldPosition(new THREE.Vector3());
+  const lookW = sv.lookAt
+    ? sv.lookAt.getWorldPosition(new THREE.Vector3())
+    : new THREE.Vector3(0, 0, 0); // the Sun sits at the origin
+  // stand on the hemisphere facing the spectacle, tilted so it hangs in the sky
+  const toLook = lookW.clone().sub(meshW).normalize();
+  const side = new THREE.Vector3().crossVectors(toLook, new THREE.Vector3(0, 1, 0)).normalize();
+  if (side.lengthSq() < 0.01) side.set(1, 0, 0);
+  const standDir = toLook.clone().applyAxisAngle(side, 0.45).normalize();
+  camera.position.copy(meshW).addScaledVector(standDir, sv.radius * 1.12);
+  controls.target.copy(lookW);
+  controls.minDistance = 0.01;
+  camera.fov = 70;
+  camera.updateProjectionMatrix();
+  controls.update();
+  surfaceExitBtn.classList.add('on');
+  closePanel();
+  showToast('Standing on ' + (sv.name || id), 'Look up. Drag to gaze around — Esc to lift off');
+}
+function exitSurface(silent = false) {
+  if (!surfaceMode) return;
+  surfaceMode = false;
+  surfaceExitBtn.classList.remove('on');
+  if (surfaceSaved) {
+    camera.position.copy(surfaceSaved.pos);
+    controls.target.copy(surfaceSaved.target);
+    controls.minDistance = surfaceSaved.min;
+    camera.fov = surfaceSaved.fov;
+    camera.updateProjectionMatrix();
+    controls.update();
+  }
+  if (!silent) showToast('Back in orbit', '');
+}
+surfaceExitBtn.addEventListener('click', () => exitSurface());
+
 // ============================================================
 // LEVEL 0 — EARTH  (1 unit = 637.1 km, Earth radius = 10)
 // ============================================================
@@ -293,14 +451,28 @@ const earthLevel = (() => {
   const group = new THREE.Group();
   const pickables = [];
 
-  group.add(new THREE.AmbientLight(0x445066, 1.2));
-  const sunLight = new THREE.DirectionalLight(0xffffff, 2.4);
-  sunLight.position.set(80, 30, 60);
-  group.add(sunLight);
+  group.add(new THREE.AmbientLight(0x445066, 0.55));
 
   // earth + everything pinned to its surface rotates together
   const earthFixed = new THREE.Group();
   group.add(earthFixed);
+
+  // real day/night terminator: the sun light rides inside the rotating
+  // earth frame, positioned over the actual subsolar point right now
+  const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
+  earthFixed.add(sunLight);
+  function updateSubsolar() {
+    const now = new Date();
+    const start = Date.UTC(now.getUTCFullYear(), 0, 0);
+    const doy = (now.getTime() - start) / 86400000;
+    const decl = 23.44 * Math.sin(2 * Math.PI * (doy - 81) / 365.24);
+    const utcH = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+    let lon = (12 - utcH) * 15;
+    if (lon > 180) lon -= 360; if (lon < -180) lon += 360;
+    sunLight.position.copy(latLonToVec3(decl, lon, 300));
+  }
+  updateSubsolar();
+  setInterval(updateSubsolar, 60000);
 
   const earthMat = new THREE.MeshStandardMaterial({ map: TEX.earthTexture(), roughness: 1 });
   tryPhotoTexture('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg', earthMat);
@@ -317,6 +489,7 @@ const earthLevel = (() => {
   // ---- live satellites (CelesTrak TLEs + SGP4) ----
   const MAX_SATS = 400;
   let satPos = new Float32Array(0);
+  let satCol = new Float32Array(0);
   let satIndexMap = new Int32Array(0); // draw index -> sats[] index
   const satGeom = new THREE.BufferGeometry();
   satGeom.setAttribute('position', new THREE.BufferAttribute(satPos, 3));
@@ -325,14 +498,22 @@ const earthLevel = (() => {
     // size the buffer exactly to the loaded list, so no dead (0,0,0)
     // points exist to swallow raycasts
     satPos = new Float32Array(sats.length * 3);
+    satCol = new Float32Array(sats.length * 3);
     satIndexMap = new Int32Array(sats.length);
     satGeom.setAttribute('position', new THREE.BufferAttribute(satPos, 3));
+    satGeom.setAttribute('color', new THREE.BufferAttribute(satCol, 3));
     satGeom.setDrawRange(0, 0);
     // fixed generous bounds (covers GEO) so picking works every frame
     satGeom.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 120);
   }
+  // colour by orbit class: LEO cyan, MEO gold, GEO orange, debris red
+  const SAT_COLORS = [[0.55, 0.85, 1], [1, 0.85, 0.45], [1, 0.62, 0.42], [1, 0.45, 0.45]];
+  function satClass(s) {
+    if (/\bDEB\b/i.test(s.name)) return 3;
+    return s.alt > 33000 ? 2 : s.alt > 2000 ? 1 : 0;
+  }
   const satPoints = new THREE.Points(satGeom, new THREE.PointsMaterial({
-    map: dotTex, color: 0xaee4ff, size: 8, sizeAttenuation: false,
+    map: dotTex, vertexColors: true, size: 8, sizeAttenuation: false,
     transparent: true, depthWrite: false }));
   satPoints.frustumCulled = false;
   satPoints.userData.pickPriority = 2;
@@ -342,8 +523,8 @@ const earthLevel = (() => {
   let sats = [];          // { name, satrec | sim:{...}, lat, lon, alt, vel }
   let satsAreSimulated = false;
 
-  satPoints.userData.pointInfos = (idx) => {
-    const s = sats[satIndexMap[idx]];
+  satPoints.userData.pointInfos = (idx) => satInfoFor(sats[satIndexMap[idx]]);
+  function satInfoFor(s) {
     if (!s) return null;
     const cls = DATA.classifySat(s.name);
     const live = !satsAreSimulated;
@@ -367,7 +548,7 @@ const earthLevel = (() => {
       stats,
       desc: cls.desc + (live ? ' Its position on this map is recomputed several times a second with the SGP4 model from its latest public CelesTrak orbital elements — the same data ground stations use to point antennas.' : ''),
     };
-  };
+  }
 
   function makeSimSats() {
     satsAreSimulated = true;
@@ -419,6 +600,15 @@ const earthLevel = (() => {
       satsAreSimulated = false;
       allocSatBuffers();
       showToast('Live satellite data loaded', `${sats.length} satellites tracked in real time`);
+      // every tracked satellite becomes searchable
+      for (const s of sats) {
+        addSearchEntry({
+          name: s.name, sub: DATA.classifySat(s.name).type, level: 0, dist: 9,
+          getWorldPos: () => earthFixed.localToWorld(
+            latLonToVec3(s.lat, s.lon, EARTH_R * (6371 + s.alt) / 6371)),
+          info: () => satInfoFor(s),
+        });
+      }
     } catch (err) {
       console.warn('CelesTrak unavailable, using simulated satellites:', err);
       makeSimSats();
@@ -445,6 +635,8 @@ const earthLevel = (() => {
         if (pv.velocity) s.vel = Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z);
         const v = latLonToVec3(s.lat, s.lon, EARTH_R * (6371 + s.alt) / 6371);
         satPos[n * 3] = v.x; satPos[n * 3 + 1] = v.y; satPos[n * 3 + 2] = v.z;
+        const col = SAT_COLORS[satClass(s)];
+        satCol[n * 3] = col[0]; satCol[n * 3 + 1] = col[1]; satCol[n * 3 + 2] = col[2];
         satIndexMap[n] = si;
         n++;
       }
@@ -464,12 +656,15 @@ const earthLevel = (() => {
         s.alt = alt;
         const v = latLonToVec3(s.lat, s.lon, EARTH_R * (6371 + alt) / 6371);
         satPos[n * 3] = v.x; satPos[n * 3 + 1] = v.y; satPos[n * 3 + 2] = v.z;
+        const col = SAT_COLORS[satClass(s)];
+        satCol[n * 3] = col[0]; satCol[n * 3 + 1] = col[1]; satCol[n * 3 + 2] = col[2];
         satIndexMap[n] = si;
         n++;
       }
     }
     satGeom.setDrawRange(0, n);
     satGeom.attributes.position.needsUpdate = true;
+    if (satGeom.attributes.color) satGeom.attributes.color.needsUpdate = true;
   }
 
   // ---- ISS (live via wheretheiss.at) ----
@@ -550,6 +745,13 @@ const earthLevel = (() => {
   geoRing.rotation.x = Math.PI / 2;
   group.add(geoRing);
 
+  // today's real close-approach asteroids (NASA NeoWs)
+  const neoUpd = EXTRAS.addNEOs({
+    group, pickables,
+    registerSearch: e => addSearchEntry({ ...e, level: 0 }),
+    onLoaded: n => showToast(`${n} asteroids passing Earth today`, 'Real close approaches from NASA — the grey/red dots out beyond the satellites'),
+  });
+
   function animate(dt, t) {
     earthFixed.rotation.y += dt * (Math.PI * 2 / 600); // gentle visible rotation
     updateSatellites(performance.now());
@@ -557,6 +759,7 @@ const earthLevel = (() => {
     const ma = t * 0.02;
     moon.position.set(Math.cos(ma) * 600, 0, Math.sin(ma) * 600);
     moon.rotation.y = -ma;
+    neoUpd.update(dt);
   }
 
   return { group, pickables, minDist: 13, maxDist: 1500, animate,
@@ -604,6 +807,7 @@ const solarLevel = (() => {
     mesh.userData.focusDist = L.size * 5 + (p.moons.length ? p.moons.length * 1.5 : 0);
     holder.add(mesh);
     pickables.push(mesh);
+    surfaceViews[p.id] = { mesh, radius: L.size, lookAt: null, name: p.name }; // lookAt set below
 
     const label = TEX.makeLabel(p.name, { size: THREE.MathUtils.clamp(1.4 + L.size * 0.5, 1.7, 4) });
     label.position.y = L.size + 2.2;
@@ -630,6 +834,7 @@ const solarLevel = (() => {
       mm.userData.focusable = true; mm.userData.focusDist = Math.max(2.5, m.size * 8);
       holder.add(mm);
       pickables.push(mm);
+      surfaceViews[m.id] = { mesh: mm, radius: m.size, lookAt: mesh, name: m.name };
       moonNodes.push({ mesh: mm, r: mr, period: m.periodDays, phase: Math.random() * Math.PI * 2 });
       const morb = new THREE.Mesh(new THREE.TorusGeometry(mr, 0.02, 6, 64),
         new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 }));
@@ -647,8 +852,64 @@ const solarLevel = (() => {
     pivot.add(holder);
     group.add(pivot);
 
+    // standing on a planet, the best thing in the sky is its biggest moon
+    if (moonNodes.length) surfaceViews[p.id].lookAt = moonNodes[moonNodes.length - 1].mesh;
+
     planetNodes.push({ p, holder, mesh, moonNodes, phase: Math.random() * Math.PI * 2 });
   }
+
+  // ---- the rovers working on Mars right now ----
+  {
+    const marsNode = planetNodes.find(n => n.p.id === 'mars');
+    const ROVERS = [
+      {
+        name: 'Perseverance', lat: 18.44, lon: 77.45,
+        sub: 'NASA rover — Jezero Crater',
+        stats: [['Landed', '18 February 2021 — the "seven minutes of terror"'], ['Location', 'Jezero Crater, an ancient river delta'], ['Mission', 'Searching for signs of ancient microbial life'], ['Samples', 'Sealed tubes cached for a future return mission'], ['Sidekick', 'Carried Ingenuity — the first aircraft to fly on another world (72 flights)']],
+        desc: `A nuclear-powered, car-sized field geologist exploring a dried-up river delta where water once flowed for millions of years. Perseverance drills rock cores and seals them in tubes for a future mission to fly home — the first round-trip cargo from another planet. It also carried Ingenuity, the little helicopter that was supposed to fly five times and managed seventy-two.`,
+      },
+      {
+        name: 'Curiosity', lat: -4.59, lon: 137.44,
+        sub: 'NASA rover — Gale Crater',
+        stats: [['Landed', '6 August 2012'], ['Location', 'Gale Crater, climbing Mount Sharp'], ['Distance driven', '30+ km over a decade'], ['Key discovery', 'Gale was once a habitable lake'], ['Power', 'Plutonium — no dust storms can stop it']],
+        desc: `Operating for over a decade and still climbing. Curiosity proved that Gale Crater held a long-lived freshwater lake with all the chemical ingredients of life. Every Martian day it beams home its findings, and once a year on its landing anniversary it hums "Happy Birthday" to itself with its sample-analysis vibrator — the loneliest birthday song in the Solar System.`,
+      },
+    ];
+    for (const rv of ROVERS) {
+      const marker = new THREE.Group();
+      const pin = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffd76a }));
+      const rg = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: TEX.glowTexture('rgba(255,215,106,1)'), transparent: true, depthWrite: false }));
+      rg.scale.setScalar(0.8);
+      rg.userData.noPick = true;
+      const rl = TEX.makeLabel(rv.name, { size: 0.7, color: '#ffd76a' });
+      rl.position.y = 0.6;
+      marker.add(pin, rg, rl);
+      marker.position.copy(latLonToVec3(rv.lat, rv.lon, marsNode.p.layout.size * 1.03));
+      marker.userData.info = {
+        id: 'rover-' + rv.name.toLowerCase(), name: rv.name + ' (rover)',
+        subtitle: rv.sub, stats: rv.stats, desc: rv.desc,
+      };
+      marker.userData.pickPriority = 3;
+      marker.userData.focusable = true;
+      marker.userData.focusDist = 4;
+      marsNode.mesh.add(marker);
+      pickables.push(marker);
+    }
+  }
+
+  // deep-space probes & comets
+  const probesUpd = EXTRAS.addProbes({
+    group, pickables,
+    refreshIfOpen: inf => { if (openInfoId === inf.id) showInfo(inf); },
+    registerSearch: e => addSearchEntry({ ...e, level: 1 }),
+  });
+  const cometsUpd = EXTRAS.addComets({
+    group, pickables,
+    getDaysPerSec: () => parseFloat(speedSlider.value) || 0.5,
+    registerSearch: e => addSearchEntry({ ...e, level: 1 }),
+  });
 
   // asteroid + Kuiper belts
   function belt(rMin, rMax, count, color, opacity, ySpread, info) {
@@ -721,11 +982,21 @@ const solarLevel = (() => {
         node.holder.add(pts);
         node.swarm = pts;
         pickables.push(pts);
+        // each catalogued moon is searchable
+        list.forEach((m, idx) => addSearchEntry({
+          name: m.n, sub: 'Moon of ' + node.p.name, level: 1, dist: 6,
+          getWorldPos: () => pts.localToWorld(new THREE.Vector3(
+            pos[idx * 3], pos[idx * 3 + 1], pos[idx * 3 + 2])),
+          info: () => pts.userData.pointInfos(idx),
+        }));
       }
     } catch (e) { console.warn('moons.json unavailable:', e); }
   })();
 
   function animate(dt) {
+    if (surfaceMode) return; // the world stands still while you stand on it
+    probesUpd.update(dt);
+    cometsUpd.update(dt);
     const daysPerSec = parseFloat(speedSlider.value);
     simDays += dt * daysPerSec;
     sun.rotation.y += dt * 0.04;
@@ -778,6 +1049,7 @@ const galaxyLevel = (() => {
     new THREE.MeshBasicMaterial({ color: 0x000000 }));
   sgr.userData.info = DATA.SGR_A;
   spin.add(sgr); pickables.push(sgr);
+  const lensUpd = EXTRAS.addLensingRing({ parent: spin }); // photon ring + hot accretion disc
   const sgrLabel = TEX.makeLabel('Sagittarius A*', { color: '#ffb480', size: 9, sub: 'supermassive black hole' });
   sgrLabel.position.y = 16; spin.add(sgrLabel);
 
@@ -828,8 +1100,29 @@ const galaxyLevel = (() => {
     node.userData.focusable = true;
     node.userData.focusDist = 14;
     node.userData.pickPriority = 2;
+    // green halo = this star has known habitable-zone planets
+    if (st.pl && /habitable/i.test(st.pl)) {
+      const hz = new THREE.Mesh(
+        new THREE.TorusGeometry(st.s * 0.75 + 1, 0.09, 8, 48),
+        new THREE.MeshBasicMaterial({ color: 0x7aff9a, transparent: true, opacity: 0.55 }));
+      hz.rotation.x = Math.PI / 2;
+      hz.userData.noPick = true;
+      node.add(hz);
+      node.userData.info.stats = [...node.userData.info.stats,
+        ['Green ring', 'Marks known habitable-zone planets']];
+    }
     spin.add(node);
     pickables.push(node);
+  });
+
+  // famous nebulae & pulsars around the neighbourhood
+  EXTRAS.addNebulae({
+    spin, pickables, sunPos: sunMark.position, starDist,
+    registerSearch: e => addSearchEntry({ ...e, level: 2 }),
+  });
+  const pulsarUpd = EXTRAS.addPulsars({
+    spin, pickables, sunPos: sunMark.position, starDist,
+    registerSearch: e => addSearchEntry({ ...e, level: 2 }),
   });
 
   // --- every confirmed exoplanet (bundled NASA Exoplanet Archive catalog) ---
@@ -873,6 +1166,16 @@ const galaxyLevel = (() => {
       };
       spin.add(pts);
       pickables.push(pts);
+      // every confirmed exoplanet is searchable by name
+      for (let i = 0; i < rows.length; i++) {
+        const idx = i;
+        addSearchEntry({
+          name: rows[idx].pl_name, sub: 'Exoplanet — orbits ' + rows[idx].hostname, level: 2, dist: 7,
+          getWorldPos: () => pts.localToWorld(new THREE.Vector3(
+            pos[idx * 3], pos[idx * 3 + 1], pos[idx * 3 + 2])),
+          info: () => pts.userData.pointInfos(idx),
+        });
+      }
       if (current === 2) showToast(`${rows.length.toLocaleString()} exoplanets plotted`, 'Every confirmed planet beyond the Solar System — find them near the Sun marker');
     } catch (e) { console.warn('exoplanets.json unavailable:', e); }
   })();
@@ -892,6 +1195,8 @@ const galaxyLevel = (() => {
     spin.rotation.y += dt * 0.008;
     pulse += dt;
     ring.scale.setScalar(1 + Math.sin(pulse * 2.5) * 0.25);
+    pulsarUpd.update(dt);
+    lensUpd.update(dt);
   }
 
   return { group, pickables, minDist: 14, maxDist: 900, enterDist: 340, animate,
@@ -1035,6 +1340,13 @@ const universeLevel = (() => {
     pickables.push(node);
   });
 
+  // the most violent events ever recorded, rippling outward
+  const eventsUpd = EXTRAS.addCosmicEvents({
+    spin, pickables,
+    positions: [shuffled[10 % shuffled.length], shuffled[12 % shuffled.length], shuffled[14 % shuffled.length]],
+    registerSearch: e => addSearchEntry({ ...e, level: 4 }),
+  });
+
   // CMB shell — the edge of the visible universe
   const cmb = new THREE.Mesh(
     new THREE.SphereGeometry(420, 48, 32),
@@ -1043,7 +1355,7 @@ const universeLevel = (() => {
   group.add(cmb);
   pickables.push(cmb);
 
-  function animate(dt) { spin.rotation.y += dt * 0.004; }
+  function animate(dt) { spin.rotation.y += dt * 0.004; eventsUpd.update(dt); }
   return { group, pickables, minDist: 60, maxDist: 1300, enterDist: 400, animate,
     onEnter() { showToast('The Observable Universe', 'Keep zooming out to leave it…'); } };
 })();
@@ -1130,33 +1442,42 @@ function tick() {
 
   const L = levels[current];
   if (L.animate && L.group.visible) L.animate(dt, t);
+  if (techApi) techApi.update(dt);
 
-  // follow a focused object (e.g. an orbiting planet)
-  if (focusObj) {
-    const target = new THREE.Vector3();
-    focusObj.getWorldPosition(target);
-    const prev = controls.target.clone();
-    controls.target.lerp(target, Math.min(1, dt * 4));
-    camera.position.add(controls.target.clone().sub(prev));
-    if (focusDist) {
-      const d = camera.position.distanceTo(controls.target);
-      const nd = THREE.MathUtils.lerp(d, focusDist, Math.min(1, dt * 2.5));
-      camera.position.sub(controls.target).setLength(nd).add(controls.target);
+  if (flightApi && flightApi.active()) {
+    // flight mode owns the camera — OrbitControls must not touch it
+    flightApi.update(dt);
+  } else {
+    // follow a focused object (e.g. an orbiting planet)
+    if (focusObj) {
+      const target = new THREE.Vector3();
+      focusObj.getWorldPosition(target);
+      const prev = controls.target.clone();
+      controls.target.lerp(target, Math.min(1, dt * 4));
+      camera.position.add(controls.target.clone().sub(prev));
+      if (focusDist) {
+        const d = camera.position.distanceTo(controls.target);
+        const nd = THREE.MathUtils.lerp(d, focusDist, Math.min(1, dt * 2.5));
+        camera.position.sub(controls.target).setLength(nd).add(controls.target);
+      }
     }
+    controls.update();
   }
-
-  controls.update();
 
   // scale bar
   scaleTimer += dt;
   if (scaleTimer > 0.25) {
     scaleTimer = 0;
-    const meta = DATA.LEVEL_META[current];
-    if (meta.kmPerUnit > 0) {
-      const d = camera.position.distanceTo(controls.target);
-      scalebar.textContent = `Field of view ≈ ${formatDistance(d * meta.kmPerUnit * 1.2)}`;
+    if (techApi && techApi.active()) {
+      scalebar.textContent = "⚡ Tech Map — humanity's next machines";
     } else {
-      scalebar.textContent = 'Beyond the observable universe — scale unknowable';
+      const meta = DATA.LEVEL_META[current];
+      if (meta.kmPerUnit > 0) {
+        const d = camera.position.distanceTo(controls.target);
+        scalebar.textContent = `Field of view ≈ ${formatDistance(d * meta.kmPerUnit * 1.2)}`;
+      } else {
+        scalebar.textContent = 'Beyond the observable universe — scale unknowable';
+      }
     }
   }
 
@@ -1221,10 +1542,10 @@ async function loadNews(force = false) {
 }
 
 newsBtn.addEventListener('click', () => {
-  newsEl.classList.toggle('open');
-  if (newsEl.classList.contains('open')) loadNews();
+  if (newsEl.classList.contains('open')) { newsEl.classList.remove('open'); return; }
+  openDrawer(newsEl);
+  loadNews();
 });
-$('news-close').addEventListener('click', () => newsEl.classList.remove('open'));
 document.querySelectorAll('#news-chips .chip').forEach(ch => {
   ch.addEventListener('click', () => {
     document.querySelectorAll('#news-chips .chip').forEach(c => c.classList.remove('active'));
@@ -1235,6 +1556,149 @@ document.querySelectorAll('#news-chips .chip').forEach(ch => {
 });
 // keep the feed fresh while it's open
 setInterval(() => { if (newsEl.classList.contains('open')) loadNews(true); }, 10 * 60 * 1000);
+
+// ---------------- search: index everything & navigate ----------------
+function navigateTo(e) {
+  if (e.action) { e.action(); return; } // custom destinations (tech map nodes)
+  if (techApi && techApi.active()) techApi.exit();
+  if (flightApi && flightApi.active()) flightApi.exit();
+  if (surfaceMode) exitSurface(true);
+  const go = () => {
+    const info = typeof e.info === 'function' ? e.info() : (e.info || (e.obj && e.obj.userData.info));
+    const p = e.getWorldPos ? e.getWorldPos() : null;
+    if (p) {
+      clearFocus();
+      controls.target.copy(p);
+      const d = THREE.MathUtils.clamp(
+        e.dist || controls.minDistance * 3, controls.minDistance, controls.maxDistance);
+      const dir = camera.position.clone().sub(p);
+      if (dir.lengthSq() < 0.001) dir.set(0.4, 0.3, 1);
+      dir.normalize();
+      camera.position.copy(p).addScaledVector(dir, d);
+      controls.update();
+      if (e.obj && e.obj.userData.focusable) setFocus(e.obj, e.obj.userData.focusDist || d);
+    }
+    if (info) showInfo(info);
+  };
+  if (current !== e.level) gotoLevel(e.level, e.level > current, go);
+  else go();
+}
+
+// walk every level for named objects (point clouds register their own entries)
+(function buildStaticIndex() {
+  const seen = new Set();
+  levels.forEach((L, li) => {
+    L.group.traverse(o => {
+      const info = o.userData && o.userData.info;
+      if (!info || !info.name) return;
+      const key = info.id || info.name;
+      if (seen.has(key)) return;
+      seen.add(key);
+      addSearchEntry({
+        name: info.name, sub: info.subtitle || '', level: li, obj: o,
+        getWorldPos: () => o.getWorldPosition(new THREE.Vector3()),
+        dist: o.userData.focusDist || null,
+        info,
+      });
+    });
+  });
+  DATA.LEVEL_META.forEach((m, i) => addSearchEntry({
+    name: m.name, sub: m.tagline, level: i, getWorldPos: null, info: null }));
+})();
+
+searchApi = initSearch({
+  input: $('search'),
+  resultsEl: $('search-results'),
+  navigate: navigateTo,
+});
+searchQueue.forEach(e => searchApi.add(e));
+searchQueue = null;
+
+// ---------------- flight / sound / timeline / postcard ----------------
+flightApi = initFlight({
+  camera, controls, renderer,
+  getLevelBounds: () => ({ minDist: controls.minDistance, maxDist: controls.maxDistance }),
+  getLevelMeta: () => DATA.LEVEL_META[current],
+  crossLevel: dir => {
+    const ni = current + dir;
+    if (ni < 0 || ni >= levels.length || transitioning || (techApi && techApi.active())) return false;
+    gotoLevel(ni, dir > 0);
+    return true;
+  },
+  showToast,
+});
+
+soundApi = initSound($('sound-btn'));
+
+timelineApi = initTimeline({
+  panel: $('timeline'), slider: $('tl-slider'), card: $('tl-card'),
+  btn: $('timeline-btn'), closeBtn: $('tl-close'),
+});
+
+initPostcard({
+  btn: $('postcard-btn'), renderer, scene, camera,
+  getCaption: () => ({
+    title: (lastInfo && lastInfo.name) ||
+      (techApi.active() ? 'The Tech Map' : DATA.LEVEL_META[current].name),
+    sub: (lastInfo && lastInfo.subtitle) || DATA.LEVEL_META[current].tagline,
+  }),
+  showToast,
+});
+
+// ---------------- videos & games drawers ----------------
+videosApi = initVideos({ drawer: $('videos'), listEl: $('videos-list'), openDrawer });
+$('videos-btn').addEventListener('click', () => {
+  if ($('videos').classList.contains('open')) closeDrawerEl($('videos'));
+  else videosApi.open(techApi.active() ? 'tech' : undefined);
+});
+
+gamesApi = initGames({
+  drawer: $('games'), chipsEl: $('games-chips'), stageEl: $('game-stage'),
+  infoEl: $('game-info'), scoreEl: $('game-score'), openDrawer,
+});
+$('games-btn').addEventListener('click', () => {
+  if ($('games').classList.contains('open')) closeDrawerEl($('games'));
+  else gamesApi.open();
+});
+
+// ---------------- tech map ----------------
+techApi = initTech({
+  scene, camera, controls, showToast, showInfo, fadeEl,
+  onModeChange: on => {
+    closePanel(); clearFocus();
+    levels[current].group.visible = !on;
+  },
+});
+$('tech-btn').addEventListener('click', () => {
+  if (flightApi.active()) flightApi.exit();
+  if (surfaceMode) exitSurface(true);
+  techApi.toggle();
+});
+
+// tech-map nodes are searchable too — selecting one switches maps
+for (const o of techApi.pickables) {
+  const info = o.userData.info;
+  if (!info || !info.name) continue;
+  searchApi.add({
+    name: info.name, sub: info.subtitle || '', level: 0, badge: '⚡ Tech Map',
+    action: () => {
+      if (flightApi.active()) flightApi.exit();
+      if (surfaceMode) exitSurface(true);
+      const focusNode = () => {
+        const p = o.getWorldPosition(new THREE.Vector3());
+        clearFocus();
+        controls.target.copy(p);
+        const dir = camera.position.clone().sub(p);
+        if (dir.lengthSq() < 0.001) dir.set(0.4, 0.3, 1);
+        camera.position.copy(p).addScaledVector(dir.normalize(), o.userData.focusDist || 30);
+        controls.update();
+        showInfo(info);
+      };
+      if (techApi.active()) focusNode();
+      else { techApi.enter(); setTimeout(focusNode, 600); }
+    },
+  });
+}
 
 // ---------------- boot ----------------
 updateCrumbs();
@@ -1247,7 +1711,18 @@ document.getElementById('loading').classList.add('done');
 showToast('Earth', 'Scroll to zoom out — all the way past the universe');
 tick();
 
-// the orbit-speed slider only applies to the solar system level
+// deep-link: #o/<object name> jumps straight to that object once data has loaded
+setTimeout(() => {
+  const m = location.hash.match(/^#o\/(.+)$/);
+  if (m && searchApi) {
+    const e = searchApi.findExact(decodeURIComponent(m[1]));
+    if (e) navigateTo(e);
+  }
+}, 2400);
+
+// level-dependent HUD elements
 setInterval(() => {
-  $('speed-wrap').classList.toggle('show', current === 1 && !transitioning);
+  const techOn = techApi && techApi.active();
+  $('speed-wrap').classList.toggle('show', current === 1 && !transitioning && !techOn && !surfaceMode);
+  $('satlegend').classList.toggle('show', current === 0 && !transitioning && !techOn);
 }, 300);

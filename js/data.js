@@ -595,6 +595,7 @@ export const GALAXIES = [
       ['Diameter', '≈ 220,000 light-years'],
       ['Stars', '≈ 1 trillion'],
       ['Visible to naked eye', 'Yes — the most distant object you can see unaided'],
+      ['⚠ Collision with the Milky Way', 'T-minus ≈ 4.5 billion years — closing at 110 km/s right now'],
     ],
     desc: `The Milky Way's giant neighbour and the largest galaxy in the Local Group. Andromeda and the Milky Way are falling toward each other at 110 km/s and will collide and merge in about 4.5 billion years, forming a single giant elliptical galaxy sometimes nicknamed "Milkdromeda".`,
     lg: { pos: [125, 18, -35], kind: 'spiral', size: 36, tilt: 1.1 },
