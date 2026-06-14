@@ -17,10 +17,13 @@ import { initPostcard } from './postcard.js';
 import { initVideos } from './videos.js';
 import { initGames } from './games.js';
 import { initTech } from './tech.js';
+import { initPostFX } from './postfx.js';
+import { initUI } from './ui.js';
+import { initTour } from './tour.js';
 
 // module handles wired up at boot (guarded — events can fire early)
 let techApi = null, flightApi = null, soundApi = null, searchApi = null;
-let videosApi = null, gamesApi = null, timelineApi = null;
+let videosApi = null, gamesApi = null, timelineApi = null, postfxApi = null;
 
 // "stand on the surface" mode (solar-system level)
 const surfaceViews = {};   // info.id -> { mesh, radius, lookAt() }
@@ -40,7 +43,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.getElementById('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x01020a);
+scene.background = new THREE.Color(0x03020c);
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 20000);
 camera.position.set(0, 14, 40);
@@ -61,6 +64,7 @@ const panel = $('panel'), panelContent = $('panel-content');
 const tooltip = $('tooltip'), toast = $('toast'), scalebar = $('scalebar');
 const fadeEl = $('fade'), crumbsEl = $('crumbs');
 let openInfoId = null, lastInfo = null;
+let autoSpin = false;
 
 // ---- distance intelligence: light age + travel times, parsed from
 // whatever distance the info panel already states ----
@@ -232,6 +236,41 @@ function tryPhotoTexture(url, material) {
   pts.userData.noPick = true;
   scene.add(pts);
 })();
+
+// colourful nebula backdrop so deep space is never flat black
+(function backdrop() {
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(9500, 32, 24),
+    new THREE.MeshBasicMaterial({
+      map: TEX.spaceBackdropTexture(), side: THREE.BackSide,
+      transparent: true, opacity: 0.7, depthWrite: false }));
+  dome.userData.noPick = true;
+  dome.frustumCulled = false;
+  scene.add(dome);
+})();
+
+// ---------------- the player's astronaut avatar ----------------
+// A little spaceman that floats in the corner of the view (and so
+// appears in any postcard you take). Parented to the camera, drawn
+// over everything. Toggled with the 🧑‍🚀 button.
+scene.add(camera); // so camera-attached children render
+const spaceman = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: TEX.spacemanTexture(), transparent: true, depthTest: false, depthWrite: false }));
+spaceman.scale.set(0.42, 0.42, 1);
+spaceman.position.set(0.62, -0.42, -1.4);
+spaceman.renderOrder = 998;
+spaceman.visible = false;
+spaceman.userData.noPick = true;
+camera.add(spaceman);
+let spacemanOn = false;
+function toggleSpaceman() {
+  spacemanOn = !spacemanOn;
+  spaceman.visible = spacemanOn;
+  $('spaceman-btn').classList.toggle('active', spacemanOn);
+  showToast(spacemanOn ? '🧑‍🚀 Astronaut deployed' : 'Astronaut stowed',
+    spacemanOn ? 'You now ride along — and show up on your postcards' : '');
+}
+$('spaceman-btn').addEventListener('click', toggleSpaceman);
 
 // ---------------- level framework ----------------
 // Each level: { group, pickables[], minDist, maxDist, defaultDist, animate(dt,t), onEnter() }
@@ -1408,6 +1447,20 @@ const multiLevel = (() => {
     desc: `Everything on every previous level of this map — every galaxy, star, planet and person — is contained in this one bubble. In the eternal-inflation picture it is a single pocket universe that nucleated 13.8 billion years ago. Click the other bubbles to explore the theories about what they might be.`,
   }, true);
 
+  // a little easter egg — an affectionate nod to a certain animated
+  // multiverse, parked off to one side among the serious theories
+  bubble(new THREE.Vector3(140, 48, -96), 15, 0.32, {
+    id: 'dimension-c137', name: 'Dimension C-137',
+    subtitle: 'Easter egg — “Wubba lubba dub dub”',
+    stats: [
+      ['Notable residents', 'A genius (ex-)scientist & his anxious grandson'],
+      ['Preferred transport', 'A portal gun (please do not attempt)'],
+      ['House rule', '“Don\'t think about it.”'],
+      ['Canonical advice', 'Sometimes science is more art than science'],
+    ],
+    desc: `A wink to the cartoon multiverse where every choice spins off another timeline — and somewhere out there is a version of you who finally finished that side project. The real Many-Worlds idea (a few bubbles over) is stranger still, and sadly doesn't come with a portal gun. Get your schwifty, then go click a serious universe.`,
+  });
+
   // other universes, each teaching a multiverse concept
   const concepts = DATA.MULTIVERSE.concepts;
   for (let i = 0; i < 34; i++) {
@@ -1444,6 +1497,11 @@ function tick() {
   if (L.animate && L.group.visible) L.animate(dt, t);
   if (techApi) techApi.update(dt);
 
+  if (spacemanOn) {
+    spaceman.position.y = -0.42 + Math.sin(t * 1.5) * 0.03;
+    spaceman.material.rotation = Math.sin(t * 0.6) * 0.12;
+  }
+
   if (flightApi && flightApi.active()) {
     // flight mode owns the camera — OrbitControls must not touch it
     flightApi.update(dt);
@@ -1460,6 +1518,13 @@ function tick() {
         const nd = THREE.MathUtils.lerp(d, focusDist, Math.min(1, dt * 2.5));
         camera.position.sub(controls.target).setLength(nd).add(controls.target);
       }
+    }
+    // cinematic auto-spin (settings toggle) — slow orbit when idle-ish
+    if (autoSpin && !focusObj && !surfaceMode && !transitioning &&
+        !(techApi && techApi.active()) && !(tourApi && tourApi.active())) {
+      const off = camera.position.clone().sub(controls.target);
+      off.applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.12);
+      camera.position.copy(controls.target).add(off);
     }
     controls.update();
   }
@@ -1481,7 +1546,7 @@ function tick() {
     }
   }
 
-  renderer.render(scene, camera);
+  if (postfxApi) postfxApi.render(); else renderer.render(scene, camera);
 }
 
 // double-click empty space to release focus
@@ -1491,6 +1556,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (postfxApi) postfxApi.setSize(window.innerWidth, window.innerHeight);
 });
 
 // ---------------- space news (Spaceflight News API) ----------------
@@ -1614,11 +1680,28 @@ searchApi = initSearch({
 searchQueue.forEach(e => searchApi.add(e));
 searchQueue = null;
 
+// named, individually-placed objects in the current level make good
+// flight targets (planets, moons, the ISS, stars, probes…). Big point
+// clouds and decorative sprites are skipped.
+function collectFlightTargets() {
+  const out = [];
+  const seen = new Set();
+  for (const o of levels[current].pickables) {
+    const info = o.userData && o.userData.info;
+    if (!info || !info.name || o.isPoints) continue;
+    if (seen.has(info.name)) continue;
+    seen.add(info.name);
+    out.push({ name: info.name, getPos: () => o.getWorldPosition(new THREE.Vector3()) });
+  }
+  return out;
+}
+
 // ---------------- flight / sound / timeline / postcard ----------------
 flightApi = initFlight({
   camera, controls, renderer,
   getLevelBounds: () => ({ minDist: controls.minDistance, maxDist: controls.maxDistance }),
   getLevelMeta: () => DATA.LEVEL_META[current],
+  getTargets: collectFlightTargets,
   crossLevel: dir => {
     const ni = current + dir;
     if (ni < 0 || ni >= levels.length || transitioning || (techApi && techApi.active())) return false;
@@ -1637,6 +1720,7 @@ timelineApi = initTimeline({
 
 initPostcard({
   btn: $('postcard-btn'), renderer, scene, camera,
+  render: () => { if (postfxApi) postfxApi.render(); else renderer.render(scene, camera); },
   getCaption: () => ({
     title: (lastInfo && lastInfo.name) ||
       (techApi.active() ? 'The Tech Map' : DATA.LEVEL_META[current].name),
@@ -1707,6 +1791,47 @@ controls.minDistance = levels[0].minDist;
 controls.maxDistance = levels[0].maxDist;
 camera.position.set(12, 10, 26);
 controls.update();
+postfxApi = initPostFX({ renderer, scene, camera });
+
+// ---------------- guided tour, settings, help, bookmarks ----------------
+const tourApi = initTour({ gotoLevel, camera, controls, showToast });
+initUI({
+  postfx: postfxApi,
+  startTour: () => tourApi.start(),
+  showToast,
+  getView: () => ({
+    level: current, label: DATA.LEVEL_META[current].name,
+    pos: camera.position.toArray(), target: controls.target.toArray(),
+  }),
+  setView: v => {
+    if (techApi.active()) techApi.exit();
+    if (flightApi.active()) flightApi.exit();
+    const apply = () => {
+      clearFocus();
+      camera.position.fromArray(v.pos);
+      controls.target.fromArray(v.target);
+      controls.update();
+    };
+    if (current !== v.level) gotoLevel(v.level, v.level > current, apply); else apply();
+  },
+  onAutoSpin: on => { autoSpin = on; },
+  onRandom: () => {
+    const e = searchApi && searchApi.random();
+    if (e) navigateTo(e); else showToast('Nothing to fly to yet', 'Give the data a moment to load');
+  },
+});
+
+// keyboard shortcuts: number keys jump scales, P/M for postcard & sound
+window.addEventListener('keydown', e => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (document.body.classList.contains('flight') || (techApi && techApi.active())) return;
+  if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+    const i = parseInt(e.code.slice(5), 10) - 1;
+    if (i !== current && !transitioning) gotoLevel(i, i > current);
+  } else if (e.code === 'KeyP') $('postcard-btn').click();
+  else if (e.code === 'KeyM') $('sound-btn').click();
+});
+
 document.getElementById('loading').classList.add('done');
 showToast('Earth', 'Scroll to zoom out — all the way past the universe');
 tick();

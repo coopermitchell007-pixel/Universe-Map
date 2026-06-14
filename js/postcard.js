@@ -3,10 +3,11 @@
 // object name / scale / date, and download as a PNG.
 // ============================================================
 
-export function initPostcard({ btn, renderer, scene, camera, getCaption, showToast }) {
+export function initPostcard({ btn, renderer, scene, camera, getCaption, showToast, render }) {
   btn.addEventListener('click', () => {
-    // re-render right before reading pixels (no preserveDrawingBuffer needed)
-    renderer.render(scene, camera);
+    // re-render right before reading pixels (no preserveDrawingBuffer needed).
+    // use the cinematic (bloom) pipeline if one was supplied.
+    if (render) render(); else renderer.render(scene, camera);
     const src = renderer.domElement;
     const W = 1600, H = Math.round(W * src.height / src.width);
     const c = document.createElement('canvas');

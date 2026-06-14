@@ -73,6 +73,10 @@ export function initSearch({ input, resultsEl, navigate }) {
       const n = name.toLowerCase();
       return index.find(e => e.name.toLowerCase() === n) || null;
     },
+    random() {
+      const flyable = index.filter(e => e.getWorldPos);
+      return flyable.length ? flyable[Math.floor(Math.random() * flyable.length)] : null;
+    },
     size: () => index.length,
   };
 }
