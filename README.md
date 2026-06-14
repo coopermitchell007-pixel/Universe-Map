@@ -15,6 +15,16 @@ python3 -m http.server 8765
 
 ---
 
+## 🆕 Latest update
+
+- **⚡ The Tech Map is now a giant circuit board** — processor chips with heatsinks, copper traces, flowing signal pulses and blinking LEDs.
+- **🚀 Flight mode has a real glass cockpit** with a Newtonian 6-DOF flight model: throttle, afterburner + fuel, RCS thrusters, roll, inertial dampeners, an artificial horizon, G-meter, prograde/target markers, target-lock autopilot and hyperspace streaks.
+- **🎞 Cinematic look** — UnrealBloom glow over a colourful nebula backdrop (graceful fallback if the CDN is unreachable, so it always boots).
+- **🧑‍🚀 An astronaut avatar** that rides along and lands on your postcards.
+- **⚙ A control centre** — settings, FPS meter, clean view, fullscreen, bookmarks, a guided "Powers of Ten" tour, a 🎲 Surprise-me button, keyboard shortcuts (**1–6**, **H/F/P/M/?**), and a 🫧 Rick & Morty easter egg in the multiverse.
+
+---
+
 ## 🔍 Search anything
 
 ![Search](docs/search.png)
