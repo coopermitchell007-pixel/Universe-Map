@@ -1791,35 +1791,41 @@ controls.minDistance = levels[0].minDist;
 controls.maxDistance = levels[0].maxDist;
 camera.position.set(12, 10, 26);
 controls.update();
-postfxApi = initPostFX({ renderer, scene, camera });
-
 // ---------------- guided tour, settings, help, bookmarks ----------------
-const tourApi = initTour({ gotoLevel, camera, controls, showToast });
-initUI({
-  postfx: postfxApi,
-  startTour: () => tourApi.start(),
-  showToast,
-  getView: () => ({
-    level: current, label: DATA.LEVEL_META[current].name,
-    pos: camera.position.toArray(), target: controls.target.toArray(),
-  }),
-  setView: v => {
-    if (techApi.active()) techApi.exit();
-    if (flightApi.active()) flightApi.exit();
-    const apply = () => {
-      clearFocus();
-      camera.position.fromArray(v.pos);
-      controls.target.fromArray(v.target);
-      controls.update();
-    };
-    if (current !== v.level) gotoLevel(v.level, v.level > current, apply); else apply();
-  },
-  onAutoSpin: on => { autoSpin = on; },
-  onRandom: () => {
-    const e = searchApi && searchApi.random();
-    if (e) navigateTo(e); else showToast('Nothing to fly to yet', 'Give the data a moment to load');
-  },
-});
+// These are all optional polish — if any of them throws (or a CDN module
+// is unavailable) the core map must still boot, so they're wrapped.
+let tourApi = null;
+try {
+  postfxApi = initPostFX({ renderer, scene, camera });
+  tourApi = initTour({ gotoLevel, camera, controls, showToast });
+  initUI({
+    postfx: postfxApi,
+    startTour: () => tourApi && tourApi.start(),
+    showToast,
+    getView: () => ({
+      level: current, label: DATA.LEVEL_META[current].name,
+      pos: camera.position.toArray(), target: controls.target.toArray(),
+    }),
+    setView: v => {
+      if (techApi.active()) techApi.exit();
+      if (flightApi.active()) flightApi.exit();
+      const apply = () => {
+        clearFocus();
+        camera.position.fromArray(v.pos);
+        controls.target.fromArray(v.target);
+        controls.update();
+      };
+      if (current !== v.level) gotoLevel(v.level, v.level > current, apply); else apply();
+    },
+    onAutoSpin: on => { autoSpin = on; },
+    onRandom: () => {
+      const e = searchApi && searchApi.random();
+      if (e) navigateTo(e); else showToast('Nothing to fly to yet', 'Give the data a moment to load');
+    },
+  });
+} catch (e) {
+  console.warn('Optional UI subsystem failed to start (map still runs):', e);
+}
 
 // keyboard shortcuts: number keys jump scales, P/M for postcard & sound
 window.addEventListener('keydown', e => {

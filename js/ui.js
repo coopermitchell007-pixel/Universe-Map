@@ -72,10 +72,13 @@ export function initUI(ctx) {
   $('settings-btn').addEventListener('click', () => settings.classList.contains('open') ? closeSettings() : openSettings());
   $('set-close').addEventListener('click', closeSettings);
 
-  // cinematic
+  // cinematic — bloom loads lazily from the CDN, so reflect it when ready
   const bloomBox = $('set-bloom'), bloomStr = $('set-bloomstr');
-  bloomBox.checked = postfx.available();
-  bloomBox.disabled = !postfx.available();
+  bloomBox.disabled = true;
+  const bloomWatch = setInterval(() => {
+    if (postfx.available()) { bloomBox.disabled = false; bloomBox.checked = postfx.isOn(); clearInterval(bloomWatch); }
+  }, 800);
+  setTimeout(() => clearInterval(bloomWatch), 12000);
   bloomBox.addEventListener('change', () => postfx.setEnabled(bloomBox.checked));
   bloomStr.addEventListener('input', () => postfx.setStrength(parseFloat(bloomStr.value)));
 
