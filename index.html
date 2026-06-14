@@ -14,6 +14,37 @@
     }
   }
   </script>
+  <!-- boot diagnostics: if anything stops the map loading, show it on screen
+       instead of an eternal spinner (classic script: runs before the module) -->
+  <script>
+    window.__bootErr = function (msg) {
+      var l = document.getElementById('loading');
+      if (!l || l.dataset.err) return;
+      l.dataset.err = '1';
+      l.classList.remove('done');
+      l.style.opacity = '1';
+      l.innerHTML = '<div style="max-width:620px;padding:24px;text-align:center;font-family:Helvetica,Arial,sans-serif">'
+        + '<div style="font-size:15px;letter-spacing:1px;color:#ff9a8a;margin-bottom:14px">⚠ The map hit a problem while loading</div>'
+        + '<div style="font-size:13px;color:#ffd76a;background:rgba(255,160,90,0.08);border:1px solid rgba(255,160,90,0.3);border-radius:10px;padding:14px;line-height:1.5;word-break:break-word">' + String(msg) + '</div>'
+        + '<div style="font-size:12px;color:#7c8cab;margin-top:14px;line-height:1.6">Try a hard refresh (Cmd/Ctrl + Shift + R). If it persists, copy this message — it tells us exactly what failed.</div></div>';
+    };
+    window.addEventListener('error', function (e) {
+      if (e && e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+        window.__bootErr('Failed to load a resource: ' + (e.target.src || e.target.href) + '\n(network blocked, offline, or CDN unreachable?)');
+      } else if (e && e.message) {
+        window.__bootErr(e.message + (e.filename ? '  —  ' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+      }
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e && e.reason; window.__bootErr('Unhandled promise: ' + (r && r.message ? r.message : r));
+    });
+    setTimeout(function () {
+      var l = document.getElementById('loading');
+      if (l && !l.classList.contains('done') && !l.dataset.err) {
+        window.__bootErr('Timed out after 9 s with no error thrown.\nThe most likely cause is a module that never finished downloading — check the Network tab for a request stuck on "pending" (often unpkg.com).');
+      }
+    }, 9000);
+  </script>
 </head>
 <body>
   <div id="app"></div>
@@ -37,9 +68,20 @@
       <button id="videos-btn" title="Daily space videos">🎬</button>
       <button id="games-btn" title="Daily space games">🎮</button>
       <button id="timeline-btn" title="Cosmic timeline — Big Bang to heat death">🕰</button>
+      <button id="spaceman-btn" title="Show your astronaut (appears on postcards)">🧑‍🚀</button>
+      <button id="tour-btn" title="Guided cinematic tour (Powers of Ten)">🎞</button>
       <button id="postcard-btn" title="Save this view as a postcard">📸</button>
       <button id="sound-btn" title="Ambient sound">🔇</button>
+      <button id="settings-btn" title="Settings &amp; controls">⚙</button>
     </div>
+  </div>
+
+  <div id="fps"></div>
+  <aside id="settings"></aside>
+  <div id="help-overlay"></div>
+  <div id="tour-bar">
+    <div id="tour-card"></div>
+    <button id="tour-stop" title="End the tour">Skip ✕</button>
   </div>
 
   <aside id="news" class="drawer">
@@ -116,8 +158,7 @@
       <button id="ship-cancel">Cancel</button>
     </div>
   </div>
-  <div id="flight-hud"></div>
-  <div id="crosshair">+</div>
+  <div id="cockpit"></div>
 
   <div id="timeline">
     <div id="tl-head">

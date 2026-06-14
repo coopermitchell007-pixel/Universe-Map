@@ -15,6 +15,16 @@ python3 -m http.server 8765
 
 ---
 
+## 🆕 Latest update
+
+- **⚡ The Tech Map is now a giant circuit board** — processor chips with heatsinks, copper traces, flowing signal pulses and blinking LEDs.
+- **🚀 Flight mode has a real glass cockpit** with a Newtonian 6-DOF flight model: throttle, afterburner + fuel, RCS thrusters, roll, inertial dampeners, an artificial horizon, G-meter, prograde/target markers, target-lock autopilot and hyperspace streaks.
+- **🎞 Cinematic look** — UnrealBloom glow over a colourful nebula backdrop (graceful fallback if the CDN is unreachable, so it always boots).
+- **🧑‍🚀 An astronaut avatar** that rides along and lands on your postcards.
+- **⚙ A control centre** — settings, FPS meter, clean view, fullscreen, bookmarks, a guided "Powers of Ten" tour, a 🎲 Surprise-me button, keyboard shortcuts (**1–6**, **H/F/P/M/?**), and a 🫧 Rick & Morty easter egg in the multiverse.
+
+---
+
 ## 🔍 Search anything
 
 ![Search](docs/search.png)
@@ -23,33 +33,44 @@ The search box indexes **everything on the map by name** — all 17 (dwarf) plan
 
 Every object also gets a **shareable deep link**: the URL hash updates as you click (`#o/Titan`), and opening that link jumps straight there.
 
-## 🚀 Flight mode
+## 🚀 Flight mode — now with a real cockpit & Newtonian physics
 
 ![Ship select](docs/ships.png)
 ![Flight](docs/flight.png)
 
-Press **🚀 Fly**, choose a ship, and pilot it yourself in first person:
+Press **🚀 Fly**, choose a ship, and pilot it yourself from inside a full glass cockpit:
 
-| Ship | Character |
-|---|---|
-| 🛰 **Orbital Shuttle** | Slow and steady — sightseeing around Earth and the ISS |
-| 🚀 **Falcon Courier** | Quick interplanetary hops |
-| ☄️ **Ion Clipper** | Very fast, barely any brakes — drifts like a real spacecraft |
-| 🌀 **Warp Skiff** | Physics-insulting speed for crossing galaxies |
+| Ship | Thrust | Dampeners | Character |
+|---|---|---|---|
+| 🛰 **Orbital Shuttle** | low | strong | Forgiving and stable — the trainer. Sightseeing around Earth and the ISS |
+| 🚀 **Falcon Courier** | medium | medium | Balanced interplanetary hot-rod, deep afterburner tank |
+| ☄️ **Ion Clipper** | high | weak | Huge top speed, long glide — drifts like it has no brakes |
+| 🌀 **Warp Skiff** | extreme | medium | Physics-insulting thrust for crossing galaxies |
 
-**WASD** to fly, mouse to look, **R/F** for up/down, **Shift** to boost, scroll to trim the throttle, **Esc** to exit. The HUD converts your speed into real units for the current scale — km/s near Earth, then multiples of light speed, then *light-years per second* when you cross the galaxy. Fly past the edge of a level and you punch through into the next scale without stopping.
+**Real 6-DOF flight model.** The mouse steers (pitch + yaw), **A/D** rolls, **Q/E/R/F** fire lateral and vertical thrusters, **W/S** work the throttle, **Shift/Space** lights the afterburner (which burns a regenerating fuel tank), and **X** cuts the engines for a full stop. Press **Z** to toggle **inertial dampeners**: ON, it auto-levels and bleeds velocity toward your nose like an aircraft; OFF, it's pure momentum — you keep every bit of speed and spin and drift like an actual spacecraft.
 
-## ⚡ The Tech Map
+**The cockpit instruments are live:** an artificial horizon (attitude indicator) with a pitch ladder and roll pointer, a sliding heading compass, a throttle gauge, an afterburner fuel bar, a velocity readout that climbs from m/s → km/s → Mach → **% of light speed**, a G-meter that redlines in hard turns, warning lamps (PROX · FUEL · DAMP · A/B · AUTO), and **prograde / retrograde / target markers** projected onto the canopy. A scanner finds the nearest world; **Tab** locks a target and **G** flies you there on autopilot. Past half light-speed the stars smear into **hyperspace streaks**, and the afterburner rattles the canopy. Fly past the edge of a level and you punch straight through into the next scale.
+
+## ⚡ The Tech Map — a giant circuit board
 
 ![Tech Map](docs/tech-map.png)
 
-A second, separate 3D map — press **⚡ Tech** to switch over. Three connected clusters with 20 deeply-researched clickable nodes:
+A second, separate 3D world — press **⚡ Tech** to drop down onto a **printed circuit board** of humanity's next machines. Three **processor chips** (with engraved labels, gold pins and finned heatsinks that glow) sit on an FR4 substrate, wired to **20 component chips** by **copper traces** with **signal pulses** flowing along them. Blinking status LEDs, capacitors, resistors and a gold edge-connector fill the board. Every chip is clickable:
 
-- **SPACEX** — Starship, Falcon 9, the Raptor engine, Starlink, Dragon, and the full Mars colonisation plan
-- **TESLA** — FSD & robotaxis, the Optimus humanoid robot, Megapack grid storage, Cybertruck
-- **FUTURE TECH** — fusion power, space elevators, Dyson swarms, asteroid mining, O'Neill cylinders, nuclear propulsion, Breakthrough Starshot, terraforming Mars, brain interfaces, AI in space exploration
+- **SPACEX `U1`** — Starship, Falcon 9, the Raptor engine, Starlink, Dragon, and the full Mars colonisation plan
+- **TESLA `U2`** — FSD & robotaxis, the Optimus humanoid robot, Megapack grid storage, Cybertruck
+- **FUTURE TECH `U3`** — fusion power, space elevators, Dyson swarms, asteroid mining, O'Neill cylinders, nuclear propulsion, Breakthrough Starshot, terraforming Mars, brain interfaces, AI in space exploration
 
-While the Tech Map is open, the **news drawer switches to tech filters** (Starship, Starlink, Artemis, Rockets, Blue Origin) and the **video drawer opens on the Engineering playlist**. Press ⚡ again to return to the universe.
+While the Tech Map is open, the **news drawer switches to tech filters** (Starship, Starlink, Artemis, Rockets, Blue Origin) and the **video drawer opens on the Engineering playlist**. Press ⚡ again to fly back out to the universe.
+
+## 🎬 Cinematic mode, the tour, your astronaut & the control centre
+
+- **Cinematic glow.** The whole map now renders through an **UnrealBloom** post-processing pipeline over a **colourful nebula backdrop**, so stars, engines and galaxies actually glow. Toggle it and tune its strength in **⚙ Settings** (and it's captured in your postcards).
+- **🧑‍🚀 Your astronaut.** Hit the spaceman button and a little cosmonaut rides along in the corner of the view — and turns up in every postcard you take. *Wish you were here.*
+- **🎞 Guided tour.** One button flies you on a cinematic "Powers of Ten" journey from Earth out to the multiverse, with narration cards and a slow auto-orbit at each stop.
+- **⚙ Settings & help.** Bloom controls, an FPS meter, a **clean-view** mode that hides all UI for screenshots, fullscreen, **bookmarks** (save and re-fly any camera view, stored in your browser), a cinematic **auto-spin**, and a **🎲 Surprise me** button that flies you to a random object out of the 6,500+ indexed. Press **?** any time for the full controls card.
+- **Keyboard shortcuts.** **1–6** jump between scales, **H** hides the UI, **F** fullscreen, **P** postcard, **M** sound, **?** help.
+- **🫧 Easter egg.** Somewhere in the multiverse, off among the serious theories, floats **Dimension C-137**. Wubba lubba dub dub.
 
 ---
 
@@ -151,10 +172,13 @@ Click *anything* with a known distance and the panel now computes, automatically
 | **Drag** | Rotate the view |
 | **Click anything** | Info panel (+ camera follow for orbiting bodies) |
 | **Type in the search box** | Find & fly to any of 6,500+ named objects |
-| **🚀 Fly → WASD / mouse / Shift / R / F** | First-person flight |
+| **1 – 6** | Jump straight to a scale (Earth → Multiverse) |
+| **🚀 Fly** | Cockpit flight — mouse steer · W/S throttle · A/D roll · Q/E/R/F strafe · Shift boost · Z dampeners · X brake · Tab target · G autopilot |
 | **🧑‍🚀 button in a panel** | Stand on that world's surface |
-| **⚡ Tech** | Switch to / from the Tech Map |
-| **🕰 / 📸 / 🔊** | Timeline · postcard · ambient sound |
+| **🧑‍🚀 toolbar button** | Show your astronaut (rides along & lands on postcards) |
+| **⚡ Tech** | Switch to / from the circuit-board Tech Map |
+| **🎞 / 🕰 / 📸 / 🔊 / ⚙** | Guided tour · timeline · postcard · ambient sound · settings |
+| **H / F / P / M / ?** | Hide UI · fullscreen · postcard · sound · help |
 | **Slider (Solar System)** | Orbit time-warp, 0–60 days/sec |
 | **Esc** | Exit / close everything |
 | **Double-click empty space** | Reset camera target |
@@ -172,15 +196,18 @@ js/data.js          Hand-written astronomy: planets, moons, stars, galaxies,
                     landmarks, multiverse theories, satellite classifier
 js/extras.js        Probes (live distance), comets (Kepler-ish orbits),
                     nebulae, pulsars, GRB/GW ripples, NEO feed, photon ring
-js/flight.js        Flight mode: ships, pointer-lock look, level crossing
-js/search.js        Search UI (the index lives in app.js)
-js/tech.js          The Tech Map scene + all 20 tech nodes
+js/flight.js        Cockpit + Newtonian 6-DOF flight model & all the instruments
+js/search.js        Search UI + random-pick (the index lives in app.js)
+js/tech.js          The circuit-board Tech Map: chips, traces, signal pulses
+js/postfx.js        Cinematic UnrealBloom post-processing (with fallback)
+js/ui.js            Settings, help overlay, FPS, clean view, bookmarks
+js/tour.js          Guided "Powers of Ten" cinematic tour
 js/videos.js        44 verified videos, daily rotation, lite embeds
 js/games.js         Five mini-games + seeded daily challenges
 js/timeline.js      17 events, Big Bang → heat death
 js/sound.js         Generated WebAudio ambience per level
-js/postcard.js      Canvas compositing + download
-js/textures.js      Procedural canvas textures + galaxy point-cloud generators
+js/postcard.js      Canvas compositing + download (captures the bloom view)
+js/textures.js      Procedural canvas textures (now incl. PCB, nebula, astronaut)
 data/moons.json     All 177 catalogued moons (NASA data)
 data/exoplanets.json  All 6,298 confirmed exoplanets (NASA Exoplanet Archive)
 docs/               Screenshots
