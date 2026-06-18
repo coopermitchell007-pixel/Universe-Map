@@ -611,25 +611,26 @@ const earthLevel = (() => {
     if (!window.satellite) { makeSimSats(); return; }
     // Cache the (large) TLE payload so refreshes don't re-hit CelesTrak — repeated
     // requests are the usual reason the live feed gets rate-limited to a fallback.
-    const CACHE_KEY = 'umap_active_tle_v1', TTL = 6 * 3600 * 1000;
+    const CACHE_KEY = 'umap_active_tle_v2', TTL = 6 * 3600 * 1000;
     let text = null;
     try {
       const c = localStorage.getItem(CACHE_KEY);
       if (c) { const o = JSON.parse(c); if (o && o.text && Date.now() - o.ts < TTL) text = o.text; }
     } catch (e) {}
     if (!text) {
-      try {
-        // NOTE: use the modern gp/query endpoint — it sends CORS headers
-        // (Access-Control-Allow-Origin: *), unlike the legacy gp.php URL which
-        // browsers block, forcing the demo fallback on every load.
-        const res = await fetch('https://celestrak.org/gp/query?GROUP=active&FORMAT=tle', { signal: AbortSignal.timeout(25000) });
-        if (!res.ok) throw new Error('http ' + res.status);
-        text = await res.text();
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), text })); } catch (e) {}
-      } catch (err) {
-        console.warn('CelesTrak unavailable, using simulated satellites:', err);
-        makeSimSats(); return;
+      // Same-origin proxy first (no CORS, edge-cached); direct CelesTrak as a
+      // backup in case the function isn't available.
+      const sources = ['/api/satellites', 'https://celestrak.org/gp/query?GROUP=active&FORMAT=tle'];
+      for (const src of sources) {
+        try {
+          const res = await fetch(src, { signal: AbortSignal.timeout(25000) });
+          if (!res.ok) continue;
+          const t = await res.text();
+          if (t && t.length > 1000 && !t.includes('<html')) { text = t; break; }
+        } catch (e) { /* try next source */ }
       }
+      if (!text) { console.warn('CelesTrak unavailable, using simulated satellites'); makeSimSats(); return; }
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), text })); } catch (e) {}
     }
     try {
       const lines = text.split('\n').map(l => l.trimEnd()).filter(Boolean);
