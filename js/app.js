@@ -16,7 +16,6 @@ import { initTimeline } from './timeline.js';
 import { initPostcard } from './postcard.js';
 import { initVideos } from './videos.js';
 import { initGames } from './games.js';
-import { initTech } from './tech.js';
 import { initPostFX } from './postfx.js';
 import { initUI } from './ui.js';
 import { initTour } from './tour.js';
@@ -1608,6 +1607,14 @@ flightApi = initFlight({
   getLevelBounds: () => ({ minDist: controls.minDistance, maxDist: controls.maxDistance }),
   getLevelMeta: () => DATA.LEVEL_META[current],
   getTargets: collectFlightTargets,
+  // solid planets/moons you can physically land on (solar-system level only)
+  getLandables: () => current === 1
+    ? Object.values(surfaceViews).map(sv => ({
+        name: sv.name,
+        radius: sv.radius,
+        getPos: () => sv.mesh.getWorldPosition(new THREE.Vector3()),
+      }))
+    : [],
   crossLevel: dir => {
     const ni = current + dir;
     if (ni < 0 || ni >= levels.length || transitioning || (techApi && techApi.active())) return false;
@@ -1651,44 +1658,10 @@ $('games-btn').addEventListener('click', () => {
   else gamesApi.open();
 });
 
-// ---------------- tech map ----------------
-techApi = initTech({
-  scene, camera, controls, showToast, showInfo, fadeEl,
-  onModeChange: on => {
-    closePanel(); clearFocus();
-    levels[current].group.visible = !on;
-  },
-});
-$('tech-btn').addEventListener('click', () => {
-  if (flightApi.active()) flightApi.exit();
-  if (surfaceMode) exitSurface(true);
-  techApi.toggle();
-});
-
-// tech-map nodes are searchable too — selecting one switches maps
-for (const o of techApi.pickables) {
-  const info = o.userData.info;
-  if (!info || !info.name) continue;
-  searchApi.add({
-    name: info.name, sub: info.subtitle || '', level: 0, badge: '⚡ Tech Map',
-    action: () => {
-      if (flightApi.active()) flightApi.exit();
-      if (surfaceMode) exitSurface(true);
-      const focusNode = () => {
-        const p = o.getWorldPosition(new THREE.Vector3());
-        clearFocus();
-        controls.target.copy(p);
-        const dir = camera.position.clone().sub(p);
-        if (dir.lengthSq() < 0.001) dir.set(0.4, 0.3, 1);
-        camera.position.copy(p).addScaledVector(dir.normalize(), o.userData.focusDist || 30);
-        controls.update();
-        showInfo(info);
-      };
-      if (techApi.active()) focusNode();
-      else { techApi.enter(); setTimeout(focusNode, 600); }
-    },
-  });
-}
+// ---------------- tech map (removed) ----------------
+// The Tech Map view was retired. techApi is kept as an inert, always-inactive
+// stub so the rest of the app's `techApi.*` calls remain safe no-ops.
+techApi = { active: () => false, update() {}, exit() {}, enter() {}, toggle() {}, pickables: [] };
 
 // ---------------- boot ----------------
 updateCrumbs();

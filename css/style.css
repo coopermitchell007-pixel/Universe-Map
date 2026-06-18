@@ -502,6 +502,8 @@ body.flight #topbar, body.flight #satlegend { display: none; }
 #spd-sub { font-size: 12px; color: var(--hue); margin-top: 2px; }
 #g-val { font-size: 13px; color: #9fb4d8; margin-top: 6px; }
 #g-val.hot { color: #ff7060; text-shadow: 0 0 8px #ff7060; }
+#alt-val { display: none; font-size: 12px; color: #7adcff; margin-top: 5px; letter-spacing: 0.5px; }
+#alt-val.landed { color: #7aff9a; text-shadow: 0 0 8px rgba(122,255,154,0.6); font-weight: 700; }
 
 #fuel-bar { position: absolute; left: 50%; bottom: 188px; transform: translateX(-50%); width: 200px; text-align: center; }
 .fuel-track { height: 6px; background: rgba(6,12,24,0.6); border: 1px solid rgba(255,160,90,0.3); border-radius: 4px; overflow: hidden; }
@@ -644,6 +646,25 @@ body.clean #hint, body.clean #zoombtns, body.clean #speed-wrap { display: none !
   #search:focus { width: 210px; }
   #hint { display: none; }
   #cp-left, #cp-right { display: none; }
+}
+
+/* prevent the canvas from hijacking page gestures on touch devices */
+#app canvas { touch-action: none; }
+
+@media (max-width: 640px) {
+  #topbar { padding: 8px 10px; gap: 6px; align-items: flex-start; }
+  #topbar h1 { font-size: 15px; }
+  #crumbs { order: 3; width: 100%; }
+  #search-wrap { margin-left: auto; }
+  #search { width: 130px; } #search:focus { width: 150px; }
+  /* let the toolbar wrap to a couple of rows (keeps the dropdown un-clipped) */
+  #tools { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  #tools button { padding: 7px 9px; font-size: 13px; }
+  #panel { width: 100%; max-width: 100%; }
+  .tool-dropdown-menu { width: min(260px, calc(100vw - 20px)); }
+  #satlegend { font-size: 10px; }
+  /* bigger touch targets, no tap flash */
+  #tools button, #crumbs button, .project-link { -webkit-tap-highlight-color: transparent; }
 }
 
 /* ---------- "Other projects" dropdown ---------- */

@@ -52,7 +52,7 @@ function fmtSpeed(kmPerSec) {
 export function initFlight(ctx) {
   const {
     camera, controls, renderer, getLevelBounds, getLevelMeta,
-    crossLevel, showToast, getTargets,
+    crossLevel, showToast, getTargets, getLandables,
   } = ctx;
   const selectEl = document.getElementById('ship-select');
   const btn = document.getElementById('flight-btn');
@@ -67,6 +67,7 @@ export function initFlight(ctx) {
   const lampProx = el('#lamp-prox'), lampFuel = el('#lamp-fuel'), lampDamp = el('#lamp-damp'),
         lampAb = el('#lamp-ab'), lampAuto = el('#lamp-auto');
   const proMark = el('#pro-mark'), retMark = el('#ret-mark'), tgtMark = el('#tgt-mark');
+  const altVal = el('#alt-val');
 
   let active = false, ship = SHIPS[0], throttle = 0;
   const vel = new THREE.Vector3();
@@ -75,6 +76,8 @@ export function initFlight(ctx) {
   let dampeners = true, afterburner = false, fuel = ship.fuel, autopilot = false;
   let target = null, targetList = [], targetIdx = -1;
   let mouseDX = 0, mouseDY = 0, shake = 0, gMeter = 0;
+  let landed = null, nearAlt = null;            // physical touchdown state
+  const landNormal = new THREE.Vector3();
   const keys = {};
 
   // ---- ship selection cards ----
@@ -114,7 +117,7 @@ export function initFlight(ctx) {
 
   function disengage() {
     if (!active) return;
-    active = false; autopilot = false;
+    active = false; autopilot = false; landed = null;
     controls.enabled = true;
     controls.target.copy(camera.position).addScaledVector(
       new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion),
@@ -248,6 +251,9 @@ export function initFlight(ctx) {
     if (vel.length() > vmax) vel.setLength(vmax);
     camera.position.addScaledVector(vel, dt);
 
+    // ---- physical landing on planet surfaces ----
+    handleLanding(unit, getLevelMeta());
+
     // ---- G-meter & shake ----
     const dv = vel.clone().sub(prevVel).length() / Math.max(dt, 1e-4);
     prevVel.copy(vel);
@@ -264,6 +270,58 @@ export function initFlight(ctx) {
     }
 
     updateHUD(dt);
+  }
+
+  // ---- physical touchdown: treat each planet as a solid sphere ----
+  const _toC = new THREE.Vector3();
+  function handleLanding(unit, meta) {
+    nearAlt = null;
+    const bodies = getLandables ? getLandables() : [];
+    if (!bodies.length) { landed = null; return; }
+
+    // nearest body by surface distance
+    let best = null, bestPos = null, bestGap = Infinity;
+    for (const b of bodies) {
+      const p = b.getPos();
+      const gap = camera.position.distanceTo(p) - b.radius;
+      if (gap < bestGap) { bestGap = gap; best = b; bestPos = p; }
+    }
+    if (!best) return;
+
+    const clearance = Math.max(best.radius * 0.03, unit * 0.003);
+    _toC.copy(camera.position).sub(bestPos);
+    const alt = _toC.length() - best.radius;
+    nearAlt = { name: best.name, alt, km: meta.kmPerUnit ? alt * meta.kmPerUnit : null };
+
+    // already parked → ride along the planet; lift off on any climb input
+    if (landed === best) {
+      camera.position.copy(bestPos).addScaledVector(landNormal, best.radius + clearance);
+      vel.set(0, 0, 0);
+      if (throttle > 0.05 || keys.KeyR || afterburner || keys.Space) {
+        landed = null;
+        vel.addScaledVector(landNormal, unit * 0.03);
+        showToast('Lift-off from ' + best.name, 'You are flying again');
+      }
+      return;
+    }
+
+    // contact with the surface
+    if (alt <= clearance) {
+      const nrm = _toC.normalize();
+      const closing = -vel.dot(nrm);                 // descent speed (units/s)
+      camera.position.copy(bestPos).addScaledVector(nrm, best.radius + clearance);
+      if (closing > unit * 0.022) {
+        // too fast — bounce off, no landing
+        vel.reflect(nrm).multiplyScalar(0.35);
+        shake = 1; gMeter = 9; cockpit.classList.add('shaking');
+        showToast('⚠ Hard impact on ' + best.name + '!', 'Slow your descent for a clean touchdown');
+      } else {
+        // gentle touchdown
+        landed = best; landNormal.copy(nrm);
+        vel.set(0, 0, 0); throttle = 0;
+        showToast('🛬 Touchdown on ' + best.name, 'Throttle up · R · or Space to lift off');
+      }
+    }
   }
 
   function autoFly(dt, baseAccel) {
@@ -326,6 +384,15 @@ export function initFlight(ctx) {
       : 'scale unknowable';
     gVal.textContent = gMeter.toFixed(1) + ' G';
     gVal.classList.toggle('hot', gMeter > 6);
+
+    // radar altimeter — appears when a landable surface is within reach
+    if (altVal) {
+      if (landed) { altVal.style.display = 'block'; altVal.textContent = '🛬 LANDED · ' + landed.name; altVal.classList.add('landed'); }
+      else if (nearAlt && nearAlt.km != null && nearAlt.alt < getLevelBounds().maxDist * 0.35) {
+        altVal.style.display = 'block'; altVal.classList.remove('landed');
+        altVal.textContent = 'ALT ' + formatKm(Math.max(0, nearAlt.km)) + ' · ' + nearAlt.name;
+      } else { altVal.style.display = 'none'; }
+    }
     hdgVal.textContent = Math.round(hdg).toString().padStart(3, '0') + '°';
     hdgTape.style.transform = `translateX(${-hdg * 4}px)`;
 
@@ -435,6 +502,7 @@ function buildCockpit(root) {
         <div id="spd-val">0 km/s</div>
         <div id="spd-sub">Mach 0.0</div>
         <div id="g-val">0.0 G</div>
+        <div id="alt-val"></div>
       </div>
     </div>
 
