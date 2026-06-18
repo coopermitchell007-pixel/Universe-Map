@@ -76,7 +76,7 @@ export function initFlight(ctx) {
   let dampeners = true, afterburner = false, fuel = ship.fuel, autopilot = false;
   let target = null, targetList = [], targetIdx = -1;
   let mouseDX = 0, mouseDY = 0, shake = 0, gMeter = 0;
-  let landed = null, nearAlt = null;            // physical touchdown state
+  let landed = null, nearAlt = null, landCooldown = 0;   // physical touchdown state
   const landNormal = new THREE.Vector3();
   const keys = {};
 
@@ -101,6 +101,7 @@ export function initFlight(ctx) {
   function engage() {
     active = true;
     vel.set(0, 0, 0); prevVel.set(0, 0, 0);
+    landed = null; landCooldown = 0;
     pitchRate = yawRate = rollRate = 0;
     throttle = 0; afterburner = false; autopilot = false;
     euler.setFromQuaternion(camera.quaternion); euler.z = 0;
@@ -253,7 +254,7 @@ export function initFlight(ctx) {
     camera.position.addScaledVector(vel, dt);
 
     // ---- physical landing on planet surfaces ----
-    handleLanding(unit, vmax, getLevelMeta());
+    handleLanding(dt, unit, vmax, getLevelMeta());
 
     // ---- G-meter & shake ----
     const dv = vel.clone().sub(prevVel).length() / Math.max(dt, 1e-4);
@@ -278,7 +279,8 @@ export function initFlight(ctx) {
   // this frame's, so even a small, fast planet can't be tunnelled through.
   const _prevPos = new THREE.Vector3();
   const _seg = new THREE.Vector3(), _f = new THREE.Vector3(), _hit = new THREE.Vector3();
-  function handleLanding(unit, vmax, meta) {
+  const REST = 0.14;   // parked height above surface (must exceed the 1.08 shell)
+  function handleLanding(dt, unit, vmax, meta) {
     nearAlt = null;
     const bodies = (getLandables ? getLandables() : []) || [];
     if (!bodies.length) { landed = null; return; }
@@ -286,18 +288,21 @@ export function initFlight(ctx) {
     // already parked → ride along the body; lift off on any climb input
     if (landed) {
       const c = landed.getPos();
-      const rest = landed.radius * 0.05;
-      camera.position.copy(c).addScaledVector(landNormal, landed.radius + rest);
+      camera.position.copy(c).addScaledVector(landNormal, landed.radius * (1 + REST));
       vel.set(0, 0, 0);
-      if (throttle > 0.05 || keys.KeyR || afterburner || keys.Space) {
+      if (throttle > 0.05 || keys.KeyR || afterburner || keys.Space || keys.KeyW) {
         const name = landed.name; landed = null;
-        vel.addScaledVector(landNormal, unit * 0.04);
-        showToast('Lift-off from ' + name, 'You are flying again');
+        landCooldown = 1.2;                                // grace period to clear the surface
+        vel.copy(landNormal).multiplyScalar(unit * 0.05);  // firm push straight up
+        showToast('Lift-off from ' + name, 'Climbing away — point your nose where you want to go');
       } else {
         nearAlt = { name: landed.name, alt: 0, km: 0, landed: true };
       }
       return;
     }
+
+    // just lifted off — don't let the surface grab us again while we climb clear
+    if (landCooldown > 0) { landCooldown -= dt; return; }
 
     _seg.copy(camera.position).sub(_prevPos);        // movement this frame
     const segLen2 = _seg.lengthSq();
@@ -329,11 +334,10 @@ export function initFlight(ctx) {
     if (!best) return;
 
     // contact!
-    const rest = best.radius * 0.05;
     _hit.copy(_prevPos).addScaledVector(_seg, Math.max(0, bestT)).sub(bestC);
     const nrm = _hit.lengthSq() > 1e-9 ? _hit.normalize() : _seg.set(0, 1, 0);
     const closing = -vel.dot(nrm);
-    camera.position.copy(bestC).addScaledVector(nrm, best.radius + rest);
+    camera.position.copy(bestC).addScaledVector(nrm, best.radius * (1 + REST));
 
     if (closing > vmax * 0.55) {
       // too fast — bounce, no landing
