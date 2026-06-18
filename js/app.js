@@ -619,7 +619,10 @@ const earthLevel = (() => {
     } catch (e) {}
     if (!text) {
       try {
-        const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle', { signal: AbortSignal.timeout(25000) });
+        // NOTE: use the modern gp/query endpoint — it sends CORS headers
+        // (Access-Control-Allow-Origin: *), unlike the legacy gp.php URL which
+        // browsers block, forcing the demo fallback on every load.
+        const res = await fetch('https://celestrak.org/gp/query?GROUP=active&FORMAT=tle', { signal: AbortSignal.timeout(25000) });
         if (!res.ok) throw new Error('http ' + res.status);
         text = await res.text();
         try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), text })); } catch (e) {}
