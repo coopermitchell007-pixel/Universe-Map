@@ -604,14 +604,32 @@ const earthLevel = (() => {
       });
     }
     allocSatBuffers();
+    showToast('Showing a demo satellite set', "CelesTrak's live feed was unreachable (often a rate limit) — reload in a minute for the full ~15,800");
   }
 
   async function loadSatellites() {
     if (!window.satellite) { makeSimSats(); return; }
+    // Cache the (large) TLE payload so refreshes don't re-hit CelesTrak — repeated
+    // requests are the usual reason the live feed gets rate-limited to a fallback.
+    const CACHE_KEY = 'umap_active_tle_v1', TTL = 6 * 3600 * 1000;
+    let text = null;
     try {
-      const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle', { signal: AbortSignal.timeout(15000) });
-      if (!res.ok) throw new Error('http ' + res.status);
-      const lines = (await res.text()).split('\n').map(l => l.trimEnd()).filter(Boolean);
+      const c = localStorage.getItem(CACHE_KEY);
+      if (c) { const o = JSON.parse(c); if (o && o.text && Date.now() - o.ts < TTL) text = o.text; }
+    } catch (e) {}
+    if (!text) {
+      try {
+        const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle', { signal: AbortSignal.timeout(25000) });
+        if (!res.ok) throw new Error('http ' + res.status);
+        text = await res.text();
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), text })); } catch (e) {}
+      } catch (err) {
+        console.warn('CelesTrak unavailable, using simulated satellites:', err);
+        makeSimSats(); return;
+      }
+    }
+    try {
+      const lines = text.split('\n').map(l => l.trimEnd()).filter(Boolean);
       const out = [];
       for (let i = 0; i + 2 < lines.length + 1 && out.length < MAX_SATS; i += 3) {
         const l1 = lines[i + 1], l2 = lines[i + 2];
@@ -635,7 +653,7 @@ const earthLevel = (() => {
       sats = out;
       satsAreSimulated = false;
       allocSatBuffers();
-      showToast('Live satellite data loaded', `${sats.length.toLocaleString()} satellites tracked in real time — coloured by orbit (LEO · MEO · GEO)`);
+      showToast(`${sats.length.toLocaleString()} satellites tracked live`, 'Real CelesTrak orbits, coloured by altitude — LEO · MEO · GEO');
       // every tracked satellite becomes searchable
       for (const s of sats) {
         addSearchEntry({
@@ -646,7 +664,7 @@ const earthLevel = (() => {
         });
       }
     } catch (err) {
-      console.warn('CelesTrak unavailable, using simulated satellites:', err);
+      console.warn('Satellite data unusable, using simulated set:', err);
       makeSimSats();
     }
   }

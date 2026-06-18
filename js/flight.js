@@ -249,6 +249,7 @@ export function initFlight(ctx) {
     }
 
     if (vel.length() > vmax) vel.setLength(vmax);
+    _prevPos.copy(camera.position);
     camera.position.addScaledVector(vel, dt);
 
     // ---- physical landing on planet surfaces ----
@@ -272,55 +273,76 @@ export function initFlight(ctx) {
     updateHUD(dt);
   }
 
-  // ---- physical touchdown: treat each planet as a solid sphere ----
-  const _toC = new THREE.Vector3();
+  // ---- physical touchdown: treat each planet/moon as a solid sphere ----
+  // Uses a *swept* segment-vs-sphere test between last frame's position and
+  // this frame's, so even a small, fast planet can't be tunnelled through.
+  const _prevPos = new THREE.Vector3();
+  const _seg = new THREE.Vector3(), _f = new THREE.Vector3(), _hit = new THREE.Vector3();
   function handleLanding(unit, meta) {
     nearAlt = null;
-    const bodies = getLandables ? getLandables() : [];
+    const bodies = (getLandables ? getLandables() : []) || [];
     if (!bodies.length) { landed = null; return; }
 
-    // nearest body by surface distance
-    let best = null, bestPos = null, bestGap = Infinity;
-    for (const b of bodies) {
-      const p = b.getPos();
-      const gap = camera.position.distanceTo(p) - b.radius;
-      if (gap < bestGap) { bestGap = gap; best = b; bestPos = p; }
-    }
-    if (!best) return;
-
-    const clearance = Math.max(best.radius * 0.03, unit * 0.003);
-    _toC.copy(camera.position).sub(bestPos);
-    const alt = _toC.length() - best.radius;
-    nearAlt = { name: best.name, alt, km: meta.kmPerUnit ? alt * meta.kmPerUnit : null };
-
-    // already parked → ride along the planet; lift off on any climb input
-    if (landed === best) {
-      camera.position.copy(bestPos).addScaledVector(landNormal, best.radius + clearance);
+    // already parked → ride along the body; lift off on any climb input
+    if (landed) {
+      const c = landed.getPos();
+      const rest = landed.radius * 0.05;
+      camera.position.copy(c).addScaledVector(landNormal, landed.radius + rest);
       vel.set(0, 0, 0);
       if (throttle > 0.05 || keys.KeyR || afterburner || keys.Space) {
-        landed = null;
-        vel.addScaledVector(landNormal, unit * 0.03);
-        showToast('Lift-off from ' + best.name, 'You are flying again');
+        const name = landed.name; landed = null;
+        vel.addScaledVector(landNormal, unit * 0.04);
+        showToast('Lift-off from ' + name, 'You are flying again');
+      } else {
+        nearAlt = { name: landed.name, alt: 0, km: 0, landed: true };
       }
       return;
     }
 
-    // contact with the surface
-    if (alt <= clearance) {
-      const nrm = _toC.normalize();
-      const closing = -vel.dot(nrm);                 // descent speed (units/s)
-      camera.position.copy(bestPos).addScaledVector(nrm, best.radius + clearance);
-      if (closing > unit * 0.022) {
-        // too fast — bounce off, no landing
-        vel.reflect(nrm).multiplyScalar(0.35);
-        shake = 1; gMeter = 9; cockpit.classList.add('shaking');
-        showToast('⚠ Hard impact on ' + best.name + '!', 'Slow your descent for a clean touchdown');
-      } else {
-        // gentle touchdown
-        landed = best; landNormal.copy(nrm);
-        vel.set(0, 0, 0); throttle = 0;
-        showToast('🛬 Touchdown on ' + best.name, 'Throttle up · R · or Space to lift off');
-      }
+    _seg.copy(camera.position).sub(_prevPos);        // movement this frame
+    const segLen2 = _seg.lengthSq();
+
+    let bestT = Infinity, best = null, bestC = null;
+    let nearName = null, nearSurf = Infinity;
+    for (const b of bodies) {
+      const c = b.getPos();
+      const surf = camera.position.distanceTo(c) - b.radius;     // for altimeter
+      if (surf < nearSurf) { nearSurf = surf; nearName = b.name; }
+
+      const detectR = b.radius + Math.max(b.radius * 0.25, unit * 0.005);
+      _f.copy(_prevPos).sub(c);
+      const cc = _f.lengthSq() - detectR * detectR;
+      if (cc <= 0) { if (bestT > 0) { bestT = 0; best = b; bestC = c; } continue; } // already inside
+      if (segLen2 < 1e-12) continue;
+      const a = segLen2, bq = 2 * _f.dot(_seg);
+      const disc = bq * bq - 4 * a * cc;
+      if (disc < 0) continue;
+      const t = (-bq - Math.sqrt(disc)) / (2 * a);
+      if (t >= 0 && t <= 1 && t < bestT) { bestT = t; best = b; bestC = c; }
+    }
+
+    if (nearName && nearSurf < getLevelBounds().maxDist * 0.4) {
+      nearAlt = { name: nearName, alt: nearSurf, km: meta.kmPerUnit ? nearSurf * meta.kmPerUnit : null };
+    }
+    if (!best) return;
+
+    // contact!
+    const rest = best.radius * 0.05;
+    _hit.copy(_prevPos).addScaledVector(_seg, Math.max(0, bestT)).sub(bestC);
+    const nrm = _hit.lengthSq() > 1e-9 ? _hit.normalize() : _seg.set(0, 1, 0);
+    const closing = -vel.dot(nrm);
+    camera.position.copy(bestC).addScaledVector(nrm, best.radius + rest);
+
+    if (closing > unit * 0.06) {
+      // too fast — bounce, no landing
+      vel.reflect(nrm).multiplyScalar(0.35);
+      shake = 1; gMeter = 9; cockpit.classList.add('shaking');
+      showToast('⚠ Hard impact on ' + best.name + '!', 'Ease off the throttle for a soft landing');
+    } else {
+      // gentle touchdown
+      landed = best; landNormal.copy(nrm);
+      vel.set(0, 0, 0); throttle = 0;
+      showToast('🛬 Touchdown on ' + best.name, 'Throttle up · R · or Space to lift off');
     }
   }
 
