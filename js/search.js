@@ -4,7 +4,7 @@
 // probes, nebulae…). Typing filters; selecting flies you there.
 // ============================================================
 
-const LEVEL_BADGES = ['Earth', 'Solar System', 'Milky Way', 'Local Group', 'Universe', 'Multiverse'];
+const LEVEL_BADGES = ['Earth', 'Solar System', 'Milky Way', 'Local Group', 'Universe'];
 
 export function initSearch({ input, resultsEl, navigate }) {
   const index = [];

@@ -20,7 +20,7 @@ const EVENTS = [
   { t: '+100 trillion years', name: 'The last star burns out', desc: 'Star formation ended long ago. The final red dwarfs — the thriftiest stars, sipping fuel for trillions of years — finally gutter out. The Stelliferous Era is over; the universe goes dark forever.' },
   { t: '+10³⁴ years', name: 'Matter itself decays (perhaps)', desc: 'If protons are unstable, as many theories predict, atoms themselves dissolve. Planets, dead stars, monuments — everything made of matter evaporates into radiation and stray particles.' },
   { t: '+10⁶⁷ years', name: 'Black holes evaporate', desc: 'Stellar black holes finish leaking away by Hawking radiation, each ending in a final flash. The supermassive ones — like Sagittarius A* — hold out until ~10¹⁰⁰ years.' },
-  { t: '+10¹⁰⁰ years', name: 'Heat death', desc: 'Maximum entropy. No gradients, no energy flows, no events. Time becomes meaningless because nothing changes. Unless, of course, a new quantum fluctuation — or a cyclic bounce — starts it all again. Scroll the map to the Multiverse level for those ideas.' },
+  { t: '+10¹⁰⁰ years', name: 'Heat death', desc: 'Maximum entropy. No gradients, no energy flows, no events. Time becomes meaningless because nothing changes. Unless, of course, a new quantum fluctuation — or a cyclic bounce — starts it all again.' },
 ];
 
 export function initTimeline({ panel, slider, card, btn, closeBtn }) {

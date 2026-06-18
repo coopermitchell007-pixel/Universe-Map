@@ -1,7 +1,7 @@
 // ============================================================
 // Interactive Universe Map
-// Six nested scales: Earth → Solar System → Milky Way →
-// Local Group → Observable Universe → Multiverse.
+// Five nested scales: Earth → Solar System → Milky Way →
+// Local Group → Observable Universe.
 // Scroll past the edge of each level to travel to the next.
 // ============================================================
 import * as THREE from 'three';
@@ -177,18 +177,6 @@ function showToast(title, sub) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
 }
 
-function showMultiversePanel() {
-  const mv = DATA.MULTIVERSE;
-  let html = `<h2>${mv.title}</h2><p>${mv.intro}</p>`;
-  for (const c of mv.concepts) {
-    html += `<h3>${c.name}</h3><div class="sub">${c.subtitle}</div><p>${c.desc}</p>`;
-  }
-  html += `<p class="dim">Tip: the bubbles around you are clickable too.</p>`;
-  panelContent.innerHTML = html;
-  panel.classList.add('open');
-  openInfoId = 'multiverse';
-}
-
 // distance formatting for the scale bar
 const KM_PER_AU = 1.496e8, KM_PER_LY = 9.461e12;
 function formatDistance(km) {
@@ -249,28 +237,7 @@ function tryPhotoTexture(url, material) {
   scene.add(dome);
 })();
 
-// ---------------- the player's astronaut avatar ----------------
-// A little spaceman that floats in the corner of the view (and so
-// appears in any postcard you take). Parented to the camera, drawn
-// over everything. Toggled with the 🧑‍🚀 button.
 scene.add(camera); // so camera-attached children render
-const spaceman = new THREE.Sprite(new THREE.SpriteMaterial({
-  map: TEX.spacemanTexture(), transparent: true, depthTest: false, depthWrite: false }));
-spaceman.scale.set(0.42, 0.42, 1);
-spaceman.position.set(0.62, -0.42, -1.4);
-spaceman.renderOrder = 998;
-spaceman.visible = false;
-spaceman.userData.noPick = true;
-camera.add(spaceman);
-let spacemanOn = false;
-function toggleSpaceman() {
-  spacemanOn = !spacemanOn;
-  spaceman.visible = spacemanOn;
-  $('spaceman-btn').classList.toggle('active', spacemanOn);
-  showToast(spacemanOn ? '🧑‍🚀 Astronaut deployed' : 'Astronaut stowed',
-    spacemanOn ? 'You now ride along — and show up on your postcards' : '');
-}
-$('spaceman-btn').addEventListener('click', toggleSpaceman);
 
 // ---------------- level framework ----------------
 // Each level: { group, pickables[], minDist, maxDist, defaultDist, animate(dt,t), onEnter() }
@@ -357,6 +324,36 @@ function dolly(factor) {
 }
 $('zoom-in').addEventListener('click', () => dolly(0.55));
 $('zoom-out').addEventListener('click', () => dolly(1.8));
+
+// ---------------- About panel ----------------
+function showAbout() {
+  panelContent.innerHTML = `
+    <h2>About</h2>
+    <div class="sub">The maker &amp; the project</div>
+    <p><b style="color:#fff">Universe Map</b> is an interactive, real-data journey from your back garden out to the edge of the observable universe — live satellites, every catalogued moon, every confirmed exoplanet, the cosmic web, and a cinematic tour through it all.</p>
+    <h3>Made by Cooper Mitchell</h3>
+    <p>I build interactive maps of the cosmos and the Earth — blending real astronomical &amp; live data with Three.js, WebGL and a lot of curiosity. Everything here is hand-built and free to explore.</p>
+    <table>
+      <tr><td>Built with</td><td>Three.js · WebGL · live orbital &amp; astronomical data</td></tr>
+      <tr><td>Data</td><td>Real catalogues — satellites, exoplanets, galaxies &amp; more</td></tr>
+      <tr><td>GitHub</td><td><a href="https://github.com/coopermitchell007-pixel" target="_blank" rel="noopener" style="color:#7adcff">@coopermitchell007-pixel ↗</a></td></tr>
+    </table>
+    <h3>My other projects</h3>
+    <p><a href="https://disaster-map-roan.vercel.app/" target="_blank" rel="noopener" style="color:#7adcff">🌍 Disaster Map ↗</a><br>
+    <span class="dim">A live map of real-time natural disasters on Earth.</span></p>
+    <p class="dim">Thanks for exploring — drag, scroll and click anything.</p>`;
+  panel.classList.add('open');
+  openInfoId = 'about';
+}
+$('about-btn').addEventListener('click', showAbout);
+
+// ---------------- "Other projects" dropdown ----------------
+const projectsDd = $('projects-dd');
+$('projects-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  projectsDd.classList.toggle('open');
+});
+document.addEventListener('click', () => projectsDd.classList.remove('open'));
 
 // ---------------- picking, hover, focus ----------------
 let focusObj = null, focusDist = null;
@@ -1400,92 +1397,6 @@ const universeLevel = (() => {
 })();
 registerLevel(universeLevel);
 
-// ============================================================
-// LEVEL 5 — MULTIVERSE
-// ============================================================
-const multiLevel = (() => {
-  const group = new THREE.Group();
-  const pickables = [];
-  const bubbles = [];
-
-  function bubble(pos, radius, hue, info, ours = false) {
-    const node = new THREE.Group();
-    node.position.copy(pos);
-    const color = new THREE.Color().setHSL(hue, 0.7, ours ? 0.7 : 0.6);
-    const shell = new THREE.Mesh(
-      new THREE.SphereGeometry(radius, 32, 24),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: ours ? 0.22 : 0.13, side: THREE.DoubleSide }));
-    node.add(shell);
-    const inner = new THREE.Points(
-      TEX.blobGalaxyGeometry({ count: ours ? 900 : 350, radius: radius * 0.75, flat: 1, color: color.getHex() }),
-      new THREE.PointsMaterial({ map: dotTex, size: radius * 0.04, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
-    node.add(inner);
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: TEX.glowTexture(`rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},1)`),
-      transparent: true, opacity: 0.5, depthWrite: false }));
-    glow.scale.setScalar(radius * 2.6);
-    glow.userData.noPick = true;
-    node.add(glow);
-    if (ours) {
-      const label = TEX.makeLabel('Our Universe', { color: '#ffd76a', size: radius * 0.5, sub: '93 billion light-years — everything you just zoomed through' });
-      label.position.y = radius * 1.25;
-      node.add(label);
-    }
-    node.userData.info = info;
-    node.userData.focusable = true;
-    node.userData.focusDist = radius * 4;
-    group.add(node);
-    pickables.push(node);
-    bubbles.push({ node, drift: new THREE.Vector3().randomDirection().multiplyScalar(0.3 + Math.random() * 0.6), phase: Math.random() * 10 });
-    return node;
-  }
-
-  // our universe at centre
-  bubble(new THREE.Vector3(0, 0, 0), 26, 0.12, {
-    id: 'ouruniverse', name: 'Our Universe', subtitle: 'One bubble among many?',
-    stats: DATA.OBSERVABLE_INFO.stats,
-    desc: `Everything on every previous level of this map — every galaxy, star, planet and person — is contained in this one bubble. In the eternal-inflation picture it is a single pocket universe that nucleated 13.8 billion years ago. Click the other bubbles to explore the theories about what they might be.`,
-  }, true);
-
-  // a little easter egg — an affectionate nod to a certain animated
-  // multiverse, parked off to one side among the serious theories
-  bubble(new THREE.Vector3(140, 48, -96), 15, 0.32, {
-    id: 'dimension-c137', name: 'Dimension C-137',
-    subtitle: 'Easter egg — “Wubba lubba dub dub”',
-    stats: [
-      ['Notable residents', 'A genius (ex-)scientist & his anxious grandson'],
-      ['Preferred transport', 'A portal gun (please do not attempt)'],
-      ['House rule', '“Don\'t think about it.”'],
-      ['Canonical advice', 'Sometimes science is more art than science'],
-    ],
-    desc: `A wink to the cartoon multiverse where every choice spins off another timeline — and somewhere out there is a version of you who finally finished that side project. The real Many-Worlds idea (a few bubbles over) is stranger still, and sadly doesn't come with a portal gun. Get your schwifty, then go click a serious universe.`,
-  });
-
-  // other universes, each teaching a multiverse concept
-  const concepts = DATA.MULTIVERSE.concepts;
-  for (let i = 0; i < 34; i++) {
-    const dir = new THREE.Vector3().randomDirection();
-    const dist = 90 + Math.pow(Math.random(), 0.7) * 520;
-    const c = concepts[i % concepts.length];
-    bubble(dir.multiplyScalar(dist), 8 + Math.random() * 22, Math.random(), {
-      ...c, name: c.name, subtitle: 'Another universe? — ' + c.subtitle,
-    });
-  }
-
-  function animate(dt, t) {
-    for (const b of bubbles) {
-      b.node.position.addScaledVector(b.drift, Math.sin(t * 0.15 + b.phase) * dt * 0.6);
-    }
-  }
-
-  return { group, pickables, minDist: 45, maxDist: 1600, enterDist: 260, animate,
-    onEnter() {
-      showToast('Beyond the Observable Universe', 'You have left everything we can ever see');
-      setTimeout(showMultiversePanel, 900);
-    } };
-})();
-registerLevel(multiLevel);
-
 // ---------------- main loop ----------------
 let scaleTimer = 0;
 function tick() {
@@ -1496,11 +1407,6 @@ function tick() {
   const L = levels[current];
   if (L.animate && L.group.visible) L.animate(dt, t);
   if (techApi) techApi.update(dt);
-
-  if (spacemanOn) {
-    spaceman.position.y = -0.42 + Math.sin(t * 1.5) * 0.03;
-    spaceman.material.rotation = Math.sin(t * 0.6) * 0.12;
-  }
 
   if (flightApi && flightApi.active()) {
     // flight mode owns the camera — OrbitControls must not touch it
@@ -1831,7 +1737,7 @@ try {
 window.addEventListener('keydown', e => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   if (document.body.classList.contains('flight') || (techApi && techApi.active())) return;
-  if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+  if (e.code >= 'Digit1' && e.code <= 'Digit5') {
     const i = parseInt(e.code.slice(5), 10) - 1;
     if (i !== current && !transitioning) gotoLevel(i, i > current);
   } else if (e.code === 'KeyP') $('postcard-btn').click();
@@ -1839,7 +1745,7 @@ window.addEventListener('keydown', e => {
 });
 
 document.getElementById('loading').classList.add('done');
-showToast('Earth', 'Scroll to zoom out — all the way past the universe');
+showToast('Earth', 'Scroll to zoom out — all the way to the edge of the universe');
 tick();
 
 // deep-link: #o/<object name> jumps straight to that object once data has loaded

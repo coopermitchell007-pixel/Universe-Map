@@ -10,7 +10,6 @@ const LEVEL_SOUND = [
   { freqs: [55, 82.4], noise: 0.05, bright: 600, shimmer: 1318 },   // Galaxy — deep + shimmer
   { freqs: [41.2, 61.7], noise: 0.06, bright: 480, shimmer: 988 },  // Local Group
   { freqs: [32.7, 49], noise: 0.07, bright: 380, shimmer: 0 },      // Universe — abyssal
-  { freqs: [65.4, 92.5], noise: 0.05, bright: 520, shimmer: 740 },  // Multiverse — uneasy fifth-ish
 ];
 
 export function initSound(btn) {

@@ -645,3 +645,40 @@ body.clean #hint, body.clean #zoombtns, body.clean #speed-wrap { display: none !
   #hint { display: none; }
   #cp-left, #cp-right { display: none; }
 }
+
+/* ---------- "Other projects" dropdown ---------- */
+.tool-dropdown { position: relative; display: inline-block; }
+.dd-chev { font-size: 9px; opacity: 0.8; }
+.tool-dropdown-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 40;
+  width: 260px;
+  background: rgba(8, 13, 28, 0.97);
+  border: 1px solid rgba(130, 170, 255, 0.35);
+  border-radius: 12px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  opacity: 0; visibility: hidden; transform: translateY(-6px);
+  transition: opacity 0.18s, transform 0.18s, visibility 0.18s;
+}
+.tool-dropdown.open .tool-dropdown-menu { opacity: 1; visibility: visible; transform: translateY(0); }
+.tool-dropdown.open #projects-btn { background: rgba(70, 120, 255, 0.3); border-color: #7aa8ff; color: #fff; }
+.dd-head {
+  font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase;
+  color: #7c8cab; padding: 12px 14px 8px;
+}
+.project-link {
+  display: flex; align-items: center; gap: 11px; text-decoration: none;
+  padding: 11px 14px; border-top: 1px solid rgba(130, 170, 255, 0.12);
+  transition: background 0.15s;
+}
+.project-link:hover { background: rgba(70, 120, 255, 0.18); }
+.project-link .pemoji {
+  font-size: 20px; width: 38px; height: 38px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 9px;
+  background: rgba(122, 220, 255, 0.12);
+}
+.project-link .pinfo { display: flex; flex-direction: column; gap: 2px; }
+.project-link .pname { color: #fff; font-size: 13.5px; font-weight: 600; }
+.project-link .pdesc { color: #7c8cab; font-size: 11px; }
+.project-link .parrow { margin-left: auto; color: #7adcff; font-size: 13px; }

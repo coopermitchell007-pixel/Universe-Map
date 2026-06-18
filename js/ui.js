@@ -9,7 +9,7 @@ const CONTROLS = [
     ['Drag', 'Rotate the view'],
     ['Click', 'Open an object\'s info panel'],
     ['Double-click empty space', 'Recentre the camera'],
-    ['1 – 6', 'Jump to a scale (Earth → Multiverse)'],
+    ['1 – 5', 'Jump to a scale (Earth → the Universe)'],
     ['Type in search', 'Find & fly to 6,500+ named objects'],
   ]],
   ['Flight mode', [

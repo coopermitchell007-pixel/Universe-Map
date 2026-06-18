@@ -764,53 +764,10 @@ export const OBSERVABLE_INFO = {
   desc: `Everything whose light has had time to reach us since the Big Bang. It is centred on us not because we are special, but because every observer sits at the centre of their own bubble of visibility. Space itself has expanded while ancient light travelled, stretching the visible radius to 46.5 billion light-years — and the whole universe is almost certainly far larger still. Keep zooming out…`,
 };
 
-export const MULTIVERSE = {
-  title: 'Beyond the Observable Universe — The Multiverse',
-  intro: `You have scrolled past the edge of everything we can ever observe. The cosmic horizon is not a wall — it is simply the limit of how far light has travelled in 13.8 billion years. What lies beyond? Cosmologists have several serious — though unproven — ideas, collectively called <b>multiverse theories</b>.`,
-  concepts: [
-    {
-      id: 'mv-level1', name: 'Level I — The Quilted Multiverse', subtitle: 'More of the same, forever',
-      stats: [['Requires', 'Only that space is much bigger than what we see'], ['Status', 'Considered very plausible']],
-      desc: `If space continues far beyond our horizon — and measurements suggest it is flat and possibly infinite — then there are countless other "observable universes" like ours, each centred on a different point. In an infinite volume, every possible arrangement of matter repeats: somewhere unimaginably far away, there may be an exact copy of you reading this exact sentence.`,
-    },
-    {
-      id: 'mv-level2', name: 'Level II — Bubble Universes', subtitle: 'Eternal inflation',
-      stats: [['Origin', 'Inflationary cosmology (Guth, Linde, Vilenkin)'], ['Prediction', 'Different physical constants per bubble']],
-      desc: `The leading theory of the Big Bang — cosmic inflation — may never fully stop. Quantum fluctuations would continually spawn new "bubble" universes inside an eternally inflating background, each bubble a complete universe that may crystallise with different physical constants. Ours would be one bubble whose constants happen to allow stars, chemistry and life. The bubbles drawn around you here illustrate this idea.`,
-    },
-    {
-      id: 'mv-level3', name: 'Level III — Many Worlds', subtitle: 'Quantum branching',
-      stats: [['Origin', 'Everett interpretation of quantum mechanics (1957)'], ['Location', 'Not far away — parallel to here']],
-      desc: `Quantum mechanics says particles exist in superpositions of states until measured. The Many-Worlds interpretation takes the equations literally: every quantum event splits reality into branches in which each outcome happens. These parallel worlds aren't somewhere else in space — they coexist with ours in an ever-branching quantum wavefunction.`,
-    },
-    {
-      id: 'mv-level4', name: 'Level IV — The Mathematical Multiverse', subtitle: 'All possible laws of physics',
-      stats: [['Proposed by', 'Max Tegmark'], ['Status', 'The most speculative level']],
-      desc: `The most radical idea: every mathematically consistent structure physically exists, and our universe is simply one equation among infinitely many, experienced from the inside. Universes with entirely different laws of physics — not just different constants — would all be equally real.`,
-    },
-    {
-      id: 'mv-strings', name: 'The String Landscape', subtitle: '10⁵⁰⁰ possible universes',
-      stats: [['Origin', 'String theory'], ['Possible vacuum states', '≈ 10⁵⁰⁰']],
-      desc: `String theory permits an astronomical number (~10⁵⁰⁰) of stable configurations of space, each yielding different particles and forces. Combined with eternal inflation, every configuration could be realised in some bubble — possibly explaining why our universe's constants seem so finely tuned for life: we could only exist in a bubble where they are.`,
-    },
-    {
-      id: 'mv-cyclic', name: 'Cyclic & Brane Universes', subtitle: 'Universes before our own',
-      stats: [['Variants', 'Ekpyrotic model, conformal cyclic cosmology (Penrose)'], ['Idea', 'The Big Bang was not the beginning']],
-      desc: `Perhaps the Big Bang was a transition, not a beginning: colliding higher-dimensional membranes ("branes"), or an endless cycle in which each universe's cold, empty end becomes the next one's hot, dense birth. Roger Penrose has even claimed (controversially) to see faint rings in the cosmic microwave background left by a previous aeon.`,
-    },
-    {
-      id: 'mv-evidence', name: 'Could we ever know?', subtitle: 'The scientific status of the multiverse',
-      stats: [['Direct observation', 'Impossible by definition'], ['Possible indirect tests', 'CMB "bruises", gravitational wave relics, fine-tuning statistics']],
-      desc: `The multiverse is a serious prediction of well-tested theories (inflation, quantum mechanics), but no other universe has ever been observed — and may never be. Scientists search for indirect evidence, such as a circular "bruise" in the cosmic microwave background from an ancient collision with a neighbouring bubble. Until then, the multiverse remains exactly that: a beautiful, mathematically motivated hypothesis at the very edge of science. Everything you zoomed through to get here, though — that part is real.`,
-    },
-  ],
-};
-
 export const LEVEL_META = [
   { name: 'Earth', tagline: 'Home — with live satellites & the ISS', kmPerUnit: 637.1 },
   { name: 'The Solar System', tagline: 'One star, 17 (dwarf) planets & every catalogued moon', kmPerUnit: 149.6e6 / 52 },
   { name: 'The Milky Way', tagline: '≈ 200 billion stars — every known exoplanet plotted', kmPerUnit: (100000 * 9.461e12) / 400 },
   { name: 'The Local Group', tagline: 'Our neighbourhood of galaxies', kmPerUnit: (10e6 * 9.461e12) / 260 },
   { name: 'The Observable Universe', tagline: 'The cosmic web — everything we can see', kmPerUnit: (93e9 * 9.461e12) / 840 },
-  { name: 'The Multiverse?', tagline: 'Beyond the edge of everything', kmPerUnit: 0 },
 ];

@@ -1,6 +1,6 @@
 // ============================================================
 // Guided cinematic tour — a "Powers of Ten" flight from Earth out
-// to the multiverse, with narration cards and a slow auto-orbit.
+// to the edge of the observable universe, with narration cards and a slow auto-orbit.
 // Click anywhere, press Esc, or hit Skip to take back the controls.
 // ============================================================
 import * as THREE from 'three';
@@ -11,8 +11,7 @@ const STOPS = [
   { level: 1, dist: 0.42, title: 'The Solar System', text: 'Out past the Moon, eight planets and a host of icy worlds orbit one very ordinary star. Probes are still coasting toward the edge.' },
   { level: 2, dist: 0.55, title: 'The Milky Way', text: 'Our Sun is one mote among 400 billion. Every confirmed exoplanet ever found is plotted here, clustered around the “you are here” marker.' },
   { level: 3, dist: 0.55, title: 'The Local Group', text: 'The galaxy joins a small family of neighbours — and in a few billion years, Andromeda will fall right into us.' },
-  { level: 4, dist: 0.6, title: 'The Observable Universe', text: 'Zoom out far enough and galaxies become glowing dust strung along a cosmic web — the largest structure that exists.' },
-  { level: 5, dist: 0.5, title: 'Beyond', text: 'And maybe ours is just one bubble among countless others. Thanks for taking the ride. 🚀' },
+  { level: 4, dist: 0.6, title: 'The Observable Universe', text: 'Zoom out far enough and galaxies become glowing dust strung along a cosmic web — the largest structure that exists, and the edge of everything we can ever see. Thanks for taking the ride. 🚀' },
 ];
 
 export function initTour(ctx) {
