@@ -253,7 +253,7 @@ export function initFlight(ctx) {
     camera.position.addScaledVector(vel, dt);
 
     // ---- physical landing on planet surfaces ----
-    handleLanding(unit, getLevelMeta());
+    handleLanding(unit, vmax, getLevelMeta());
 
     // ---- G-meter & shake ----
     const dv = vel.clone().sub(prevVel).length() / Math.max(dt, 1e-4);
@@ -278,7 +278,7 @@ export function initFlight(ctx) {
   // this frame's, so even a small, fast planet can't be tunnelled through.
   const _prevPos = new THREE.Vector3();
   const _seg = new THREE.Vector3(), _f = new THREE.Vector3(), _hit = new THREE.Vector3();
-  function handleLanding(unit, meta) {
+  function handleLanding(unit, vmax, meta) {
     nearAlt = null;
     const bodies = (getLandables ? getLandables() : []) || [];
     if (!bodies.length) { landed = null; return; }
@@ -309,7 +309,9 @@ export function initFlight(ctx) {
       const surf = camera.position.distanceTo(c) - b.radius;     // for altimeter
       if (surf < nearSurf) { nearSurf = surf; nearName = b.name; }
 
-      const detectR = b.radius + Math.max(b.radius * 0.25, unit * 0.005);
+      // thin shell just above the real surface — only an actual fly-into
+      // the planet collides (the swept test still catches fast pass-throughs)
+      const detectR = b.radius * 1.08;
       _f.copy(_prevPos).sub(c);
       const cc = _f.lengthSq() - detectR * detectR;
       if (cc <= 0) { if (bestT > 0) { bestT = 0; best = b; bestC = c; } continue; } // already inside
@@ -333,7 +335,7 @@ export function initFlight(ctx) {
     const closing = -vel.dot(nrm);
     camera.position.copy(bestC).addScaledVector(nrm, best.radius + rest);
 
-    if (closing > unit * 0.06) {
+    if (closing > vmax * 0.55) {
       // too fast — bounce, no landing
       vel.reflect(nrm).multiplyScalar(0.35);
       shake = 1; gMeter = 9; cockpit.classList.add('shaking');
