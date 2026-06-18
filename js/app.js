@@ -522,7 +522,7 @@ const earthLevel = (() => {
   group.add(atmo);
 
   // ---- live satellites (CelesTrak TLEs + SGP4) ----
-  const MAX_SATS = 400;
+  const MAX_SATS = 20000;
   let satPos = new Float32Array(0);
   let satCol = new Float32Array(0);
   let satIndexMap = new Int32Array(0); // draw index -> sats[] index
@@ -540,6 +540,7 @@ const earthLevel = (() => {
     satGeom.setDrawRange(0, 0);
     // fixed generous bounds (covers GEO) so picking works every frame
     satGeom.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 120);
+    primeSatellites();   // give every satellite a real position immediately
   }
   // colour by orbit class: LEO cyan, MEO gold, GEO orange, debris red
   const SAT_COLORS = [[0.55, 0.85, 1], [1, 0.85, 0.45], [1, 0.62, 0.42], [1, 0.45, 0.45]];
@@ -548,7 +549,7 @@ const earthLevel = (() => {
     return s.alt > 33000 ? 2 : s.alt > 2000 ? 1 : 0;
   }
   const satPoints = new THREE.Points(satGeom, new THREE.PointsMaterial({
-    map: dotTex, vertexColors: true, size: 8, sizeAttenuation: false,
+    map: dotTex, vertexColors: true, size: 6, sizeAttenuation: false,
     transparent: true, depthWrite: false }));
   satPoints.frustumCulled = false;
   satPoints.userData.pickPriority = 2;
@@ -608,7 +609,7 @@ const earthLevel = (() => {
   async function loadSatellites() {
     if (!window.satellite) { makeSimSats(); return; }
     try {
-      const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle', { signal: AbortSignal.timeout(10000) });
+      const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle', { signal: AbortSignal.timeout(15000) });
       if (!res.ok) throw new Error('http ' + res.status);
       const lines = (await res.text()).split('\n').map(l => l.trimEnd()).filter(Boolean);
       const out = [];
@@ -634,7 +635,7 @@ const earthLevel = (() => {
       sats = out;
       satsAreSimulated = false;
       allocSatBuffers();
-      showToast('Live satellite data loaded', `${sats.length} satellites tracked in real time`);
+      showToast('Live satellite data loaded', `${sats.length.toLocaleString()} satellites tracked in real time — coloured by orbit (LEO · MEO · GEO)`);
       // every tracked satellite becomes searchable
       for (const s of sats) {
         addSearchEntry({
@@ -651,53 +652,67 @@ const earthLevel = (() => {
   }
   loadSatellites();
 
-  let lastSatUpdate = 0;
-  function updateSatellites(now) {
-    if (!sats.length || now - lastSatUpdate < 200) return;
-    lastSatUpdate = now;
-    const date = new Date();
-    let n = 0;
-    if (!satsAreSimulated && window.satellite) {
-      const gmst = window.satellite.gstime(date);
-      for (let si = 0; si < sats.length; si++) {
-        const s = sats[si];
-        const pv = window.satellite.propagate(s.satrec, date);
-        if (!pv || !pv.position) continue;
+  let lastSatUpdate = 0, satCursor = 0;
+  const SAT_CHUNK = 2000;   // satellites re-propagated per update tick
+
+  // Propagate one satellite into its fixed slot (si) in the buffers.
+  // With ~11k live satellites we can't propagate them all every frame, so each
+  // keeps a stable slot and we refresh a rolling chunk per tick (round-robin).
+  function propagateOne(si, date, gmst, tsec) {
+    const s = sats[si];
+    let v = null;
+    if (!satsAreSimulated && s.satrec && window.satellite) {
+      const pv = window.satellite.propagate(s.satrec, date);
+      if (pv && pv.position) {
         const geo = window.satellite.eciToGeodetic(pv.position, gmst);
         s.lat = THREE.MathUtils.radToDeg(geo.latitude);
         s.lon = THREE.MathUtils.radToDeg(geo.longitude);
         s.alt = geo.height;
         if (pv.velocity) s.vel = Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z);
-        const v = latLonToVec3(s.lat, s.lon, EARTH_R * (6371 + s.alt) / 6371);
-        satPos[n * 3] = v.x; satPos[n * 3 + 1] = v.y; satPos[n * 3 + 2] = v.z;
-        const col = SAT_COLORS[satClass(s)];
-        satCol[n * 3] = col[0]; satCol[n * 3 + 1] = col[1]; satCol[n * 3 + 2] = col[2];
-        satIndexMap[n] = si;
-        n++;
+        v = latLonToVec3(s.lat, s.lon, EARTH_R * (6371 + s.alt) / 6371);
       }
-    } else {
-      const t = date.getTime() / 1000;
-      for (let si = 0; si < sats.length; si++) {
-        const s = sats[si];
-        const { alt, inc, raan, phase } = s.sim;
-        const period = 5400 * Math.pow((6371 + alt) / 6791, 1.5);
-        const a = phase + (t / period) * Math.PI * 2;
-        // circular inclined orbit
-        const x = Math.cos(a), y = Math.sin(a) * Math.sin(inc), zz = Math.sin(a) * Math.cos(inc);
-        const xr = x * Math.cos(raan) - zz * Math.sin(raan);
-        const zr = x * Math.sin(raan) + zz * Math.cos(raan);
-        s.lat = THREE.MathUtils.radToDeg(Math.asin(y));
-        s.lon = THREE.MathUtils.radToDeg(Math.atan2(zr, xr)) - (t / 86400) * 360 % 360;
-        s.alt = alt;
-        const v = latLonToVec3(s.lat, s.lon, EARTH_R * (6371 + alt) / 6371);
-        satPos[n * 3] = v.x; satPos[n * 3 + 1] = v.y; satPos[n * 3 + 2] = v.z;
-        const col = SAT_COLORS[satClass(s)];
-        satCol[n * 3] = col[0]; satCol[n * 3 + 1] = col[1]; satCol[n * 3 + 2] = col[2];
-        satIndexMap[n] = si;
-        n++;
-      }
+    } else if (s.sim) {
+      const { alt, inc, raan, phase } = s.sim;
+      const period = 5400 * Math.pow((6371 + alt) / 6791, 1.5);
+      const a = phase + (tsec / period) * Math.PI * 2;
+      const x = Math.cos(a), y = Math.sin(a) * Math.sin(inc), zz = Math.sin(a) * Math.cos(inc);
+      const xr = x * Math.cos(raan) - zz * Math.sin(raan);
+      const zr = x * Math.sin(raan) + zz * Math.cos(raan);
+      s.lat = THREE.MathUtils.radToDeg(Math.asin(y));
+      s.lon = THREE.MathUtils.radToDeg(Math.atan2(zr, xr)) - (tsec / 86400) * 360 % 360;
+      s.alt = alt;
+      v = latLonToVec3(s.lat, s.lon, EARTH_R * (6371 + alt) / 6371);
     }
-    satGeom.setDrawRange(0, n);
+    if (v) {
+      satPos[si * 3] = v.x; satPos[si * 3 + 1] = v.y; satPos[si * 3 + 2] = v.z;
+      const col = SAT_COLORS[satClass(s)];
+      satCol[si * 3] = col[0]; satCol[si * 3 + 1] = col[1]; satCol[si * 3 + 2] = col[2];
+    }
+    satIndexMap[si] = si;
+  }
+
+  // One full pass so every satellite has a real position before it's drawn.
+  function primeSatellites() {
+    if (!sats.length) return;
+    const date = new Date();
+    const gmst = (!satsAreSimulated && window.satellite) ? window.satellite.gstime(date) : 0;
+    const tsec = date.getTime() / 1000;
+    for (let si = 0; si < sats.length; si++) propagateOne(si, date, gmst, tsec);
+    satGeom.setDrawRange(0, sats.length);
+    satGeom.attributes.position.needsUpdate = true;
+    if (satGeom.attributes.color) satGeom.attributes.color.needsUpdate = true;
+  }
+
+  function updateSatellites(now) {
+    if (!sats.length || now - lastSatUpdate < 120) return;
+    lastSatUpdate = now;
+    const date = new Date();
+    const gmst = (!satsAreSimulated && window.satellite) ? window.satellite.gstime(date) : 0;
+    const tsec = date.getTime() / 1000;
+    const chunk = Math.min(sats.length, SAT_CHUNK);
+    for (let k = 0; k < chunk; k++) propagateOne((satCursor + k) % sats.length, date, gmst, tsec);
+    satCursor = (satCursor + chunk) % sats.length;
+    satGeom.setDrawRange(0, sats.length);
     satGeom.attributes.position.needsUpdate = true;
     if (satGeom.attributes.color) satGeom.attributes.color.needsUpdate = true;
   }
